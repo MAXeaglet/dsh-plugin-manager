@@ -303,10 +303,13 @@ fn dsh_status() -> Json {
 
 #[tauri::command]
 fn start_dsh(profile: String) -> Json {
+    // "dsh web" is correct (= dsh --profile web); putting --profile after web
+    // fails because it is not a web option. Boot web (the default UI).
+    let _ = profile;
     #[cfg(target_os = "windows")]
-    let result = Command::new("cmd").args(["/c", "start", "", "dsh", "web", "--profile", &profile]).spawn();
+    let result = Command::new("cmd").args(["/c", "start", "", "dsh", "web"]).spawn();
     #[cfg(not(target_os = "windows"))]
-    let result = Command::new("sh").args(["-c", &format!("nohup dsh web --profile {} >/dev/null 2>&1 &", profile)]).spawn();
+    let result = Command::new("sh").args(["-c", "nohup dsh web >/dev/null 2>&1 &"]).spawn();
     match result {
         Ok(_) => serde_json::json!({ "ok": true }),
         Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),
