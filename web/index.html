@@ -51,6 +51,9 @@
   <label>profile</label>
   <select id="profile"></select>
   <button onclick="loadProfiles()">刷新</button>
+  <span id="dshStatus" class="dot off" title="dsh web 状态"></span>
+  <button id="startBtn" onclick="startDsh()">启动 dsh</button>
+  <button id="stopBtn" onclick="stopDsh()">停止 dsh</button>
   <div class="spacer"></div>
   <input id="searchInput" placeholder="搜索…" style="width: 140px" oninput="renderList()">
   <button onclick="exportProfile()">导出</button>
@@ -82,6 +85,11 @@ async function api(path, opts) {
       case "/api/bundle": return await invoke("set_bundle", body);
       case "/api/reorder": return await invoke("set_bundle_order", body);
       case "/api/install": return await invoke("install_plugin", body);
+      case "/api/dsh-status": return await invoke("dsh_status");
+      case "/api/dsh-start": return await invoke("start_dsh", body);
+      case "/api/dsh-stop": return await invoke("stop_dsh");
+      case "/api/profile-info": return await invoke("profile_info", { profile: qs.get("profile") });
+      case "/api/config": return await invoke("set_plugin_config", body);
     }
     throw new Error("unknown api " + name);
   }
@@ -109,6 +117,40 @@ async function loadProfiles() {
     currentProfile = sel.value;
     await loadPlugins();
   } catch (e) { toast("加载失败: " + e.message); }
+}
+async function refreshDshStatus() {
+  try {
+    const s = await api("/api/dsh-status");
+    const el = document.getElementById("dshStatus");
+    el.className = "dot " + (s.running ? "on" : "off");
+    el.title = s.running ? "dsh web 运行中 (port " + s.port + ")" : "dsh web 未运行";
+  } catch {}
+}
+async function startDsh() {
+  try {
+    const r = await api("/api/dsh-start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile }) });
+    toast(r.ok ? "已启动 dsh web（" + currentProfile + "）" : "启动失败: " + (r.error || ""));
+    setTimeout(refreshDshStatus, 2000);
+  } catch (e) { toast("启动失败: " + e.message); }
+}
+async function stopDsh() {
+  if (!confirm("确定停止 dsh web？")) return;
+  try {
+    const r = await api("/api/dsh-stop", { method: "POST" });
+    toast(r.ok ? "已停止 dsh web" : "停止失败");
+    setTimeout(refreshDshStatus, 1500);
+  } catch (e) { toast("停止失败: " + e.message); }
+}
+async function saveConfig(id) {
+  const ta = document.getElementById("configEditor");
+  let value;
+  try { value = ta.value.trim() ? JSON.parse(ta.value) : null; }
+  catch { return toast("config 不是合法 JSON"); }
+  try {
+    await api("/api/config", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id, config: value }) });
+    toast("已保存 " + id + " 的 config");
+    await loadPlugins();
+  } catch (e) { toast("保存失败: " + e.message); }
 }
 async function loadPlugins() {
   currentProfile = document.getElementById("profile").value;
@@ -165,11 +207,18 @@ async function selectPlugin(id) {
     kv.append(dt, dd);
   }
   d.appendChild(kv);
-  if (p.config) {
-    const cdt = document.createElement("dt"); cdt.textContent = "config";
-    const cdd = document.createElement("dd"); cdd.textContent = JSON.stringify(p.config);
-    kv.append(cdt, cdd);
-  }
+  const cdt = document.createElement("dt"); cdt.textContent = "config";
+  const cdd = document.createElement("dd");
+  cdd.style.display = "flex"; cdd.style.flexDirection = "column"; cdd.style.gap = "6px";
+  const ta = document.createElement("textarea");
+  ta.id = "configEditor"; ta.rows = 4; ta.style.font = "12px monospace"; ta.style.width = "100%"; ta.style.boxSizing = "border-box";
+  ta.value = p.config ? JSON.stringify(p.config, null, 2) : "";
+  ta.placeholder = "插件 config（JSON，留空表示无）";
+  const save = document.createElement("button");
+  save.textContent = "保存 config";
+  save.onclick = () => saveConfig(p.id);
+  cdd.append(ta, save);
+  kv.append(cdt, cdd);
   const actions = document.createElement("div"); actions.className = "actions";
   if (!p.disabled) {
     const b = document.createElement("button");
@@ -229,8 +278,10 @@ async function installPlugin() {
     await loadPlugins();
   } catch (e) { toast("安装失败: " + e.message); }
 }
-document.getElementById("profile").addEventListener("change", loadPlugins);
+document.getElementById("profile").addEventListener("change", () => { loadPlugins(); refreshDshStatus(); });
 loadProfiles();
+refreshDshStatus();
+setInterval(refreshDshStatus, 10000);
 </script>
 </body>
 </html>

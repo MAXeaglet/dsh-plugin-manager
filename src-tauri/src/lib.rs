@@ -189,7 +189,7 @@ fn set_plugin_disabled(profile: String, id: String, disabled: bool) -> Result<Js
         map.insert(serde_yaml::Value::String("disabled".into()), serde_yaml::Value::Bool(disabled));
         seq.push(serde_yaml::Value::Mapping(map));
     }
-    fs::write(&path, serde_yaml::to_string(&doc).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    atomic_write(&path, &serde_yaml::to_string(&doc).map_err(|e| e.to_string())?)?;
     Ok(serde_json::json!({ "id": id, "disabled": disabled }))
 }
 
@@ -211,7 +211,7 @@ fn set_bundle(profile: String, name: String, enabled: bool) -> Result<Json, Stri
         bundles.retain(|b| b != &name);
     }
     prof["bundles"] = serde_json::json!(bundles);
-    fs::write(&manifest_path, serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    atomic_write(&manifest_path, &serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?)?;
     Ok(serde_json::json!({ "name": name, "enabled": enabled, "bundles": bundles }))
 }
 
@@ -225,7 +225,7 @@ fn set_bundle_order(profile: String, bundles: Vec<String>) -> Result<Json, Strin
     if dsh.get("profile").is_none() { dsh["profile"] = serde_json::json!({}); }
     let prof = dsh.get_mut("profile").unwrap();
     prof["bundles"] = serde_json::json!(bundles);
-    fs::write(&manifest_path, serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    atomic_write(&manifest_path, &serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?)?;
     Ok(serde_json::json!({ "bundles": bundles }))
 }
 
@@ -249,10 +249,141 @@ fn install_plugin(profile: String, package: String) -> Json {
     }
 }
 
+
+fn backup_file(path: &Path) -> Result<(), String> {
+    if !path.exists() { return Ok(()); }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("cfg");
+    let bak = path.with_extension(format!("{}.{}.bak", ext, stamp));
+    fs::copy(path, &bak).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
+    backup_file(path)?;
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, content).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, path).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn dsh_running() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let out = Command::new("powershell")
+            .args(["-NoProfile", "-Command", "Get-NetTCPConnection -LocalPort 3080 -State Listen -ErrorAction SilentlyContinue"])
+            .output();
+        match out { Ok(o) => o.status.success() && !o.stdout.is_empty(), Err(_) => false }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let out = Command::new("sh").args(["-c", "lsof -iTCP:3080 -sTCP:LISTEN >/dev/null 2>&1"]).output();
+        match out { Ok(o) => o.status.success(), Err(_) => false }
+    }
+}
+
+#[tauri::command]
+fn dsh_status() -> Json {
+    serde_json::json!({ "running": dsh_running(), "port": 3080 })
+}
+
+#[tauri::command]
+fn start_dsh(profile: String) -> Json {
+    #[cfg(target_os = "windows")]
+    let result = Command::new("cmd").args(["/c", "start", "", "dsh", "web", "--profile", &profile]).spawn();
+    #[cfg(not(target_os = "windows"))]
+    let result = Command::new("sh").args(["-c", &format!("nohup dsh web --profile {} >/dev/null 2>&1 &", profile)]).spawn();
+    match result {
+        Ok(_) => serde_json::json!({ "ok": true }),
+        Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),
+    }
+}
+
+#[tauri::command]
+fn stop_dsh() -> Json {
+    #[cfg(target_os = "windows")]
+    let result = Command::new("powershell")
+        .args(["-NoProfile", "-Command", "Get-CimInstance Win32_Process -Filter \"Name like '%node%'\" | Where-Object { $_.CommandLine -match 'dsh' -and $_.CommandLine -match 'web' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"])
+        .output();
+    #[cfg(not(target_os = "windows"))]
+    let result = Command::new("sh").args(["-c", "pkill -f 'dsh web'"]).output();
+    match result {
+        Ok(o) => serde_json::json!({ "ok": o.status.success() }),
+        Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),
+    }
+}
+
+#[tauri::command]
+fn profile_info(profile: String) -> Json {
+    let dir = profile_dir(&profile);
+    serde_json::json!({
+        "profile": profile,
+        "dir": dir.to_string_lossy(),
+        "bundles": bundles_of(&profile),
+        "hasPatch": dir.join("cordis.patch.yml").exists(),
+        "hasManifest": dir.join("package.json").exists(),
+    })
+}
+
+fn json_to_serde_yaml(v: Json) -> serde_yaml::Value {
+    match v {
+        Json::Null => serde_yaml::Value::Null,
+        Json::Bool(b) => serde_yaml::Value::Bool(b),
+        Json::Number(n) => serde_yaml::Value::Number(n.as_i64().map(|i| i.into()).unwrap_or(serde_yaml::Number::from(0))),
+        Json::String(s) => serde_yaml::Value::String(s),
+        Json::Array(a) => serde_yaml::Value::Sequence(a.into_iter().map(json_to_serde_yaml).collect()),
+        Json::Object(o) => {
+            let mut m = serde_yaml::Mapping::new();
+            for (k, v) in o { m.insert(serde_yaml::Value::String(k), json_to_serde_yaml(v)); }
+            serde_yaml::Value::Mapping(m)
+        }
+    }
+}
+
+#[tauri::command]
+fn set_plugin_config(profile: String, id: String, config: Option<Json>) -> Result<Json, String> {
+    let dir = profile_dir(&profile);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join("cordis.patch.yml");
+    let content = fs::read_to_string(&path).unwrap_or_default();
+    let mut doc: serde_yaml::Value = if content.trim().is_empty() {
+        serde_yaml::Value::Sequence(vec![])
+    } else {
+        serde_yaml::from_str(&content).unwrap_or(serde_yaml::Value::Sequence(vec![]))
+    };
+    let seq = doc.as_sequence_mut().ok_or("patch root is not a list")?;
+    let mut found = false;
+    for entry in seq.iter_mut() {
+        if entry.get("id").and_then(|v| v.as_str()) == Some(id.as_str()) {
+            let map = entry.as_mapping_mut().ok_or("entry is not a mapping")?;
+            match &config {
+                Some(c) => {
+                    map.insert(serde_yaml::Value::String("config".into()), json_to_serde_yaml(c.clone()));
+                }
+                None => { map.remove(&serde_yaml::Value::String("config".into())); }
+            }
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        let mut map = serde_yaml::Mapping::new();
+        map.insert(serde_yaml::Value::String("id".into()), serde_yaml::Value::String(id.clone()));
+        if let Some(c) = &config {
+            map.insert(serde_yaml::Value::String("config".into()), json_to_serde_yaml(c.clone()));
+        }
+        seq.push(serde_yaml::Value::Mapping(map));
+    }
+    atomic_write(&path, &serde_yaml::to_string(&doc).map_err(|e| e.to_string())?)?;
+    Ok(serde_json::json!({ "id": id, "config": config }))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            list_profiles, list_plugins, set_plugin_disabled, set_bundle, set_bundle_order, export_profile, install_plugin
+            list_profiles, list_plugins, set_plugin_disabled, set_bundle, set_bundle_order, export_profile, install_plugin,
+            dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
