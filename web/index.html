@@ -4,156 +4,42 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DSH Plugin Manager</title>
-<style>
-  :root {
-    --dsw-alias-bg-base: #0d0f12;
-    --dsw-alias-bg-layer-1: #14171d;
-    --dsw-alias-bg-layer-2: #1b2029;
-    --dsw-alias-bg-overlay: rgba(10,12,15,.72);
-    --dsw-alias-border-l1: #232936;
-    --dsw-alias-border-l2: #2c3444;
-    --dsw-alias-brand-primary: #4c8dff;
-    --dsw-alias-label-primary: #e8eaef;
-    --dsw-alias-label-secondary: #9aa3b2;
-    --dsw-alias-label-tertiary: #6b7484;
-    --dsw-alias-state-success-primary: #34c759;
-    --dsw-alias-state-warn-primary: #ff9f0a;
-    --dsw-alias-state-error-primary: #ff453a;
-    --dsw-alias-interactive-bg-hover: rgba(255,255,255,.06);
-    --dsw-alias-interactive-bg-active: rgba(255,255,255,.1);
-    --dsw-alias-bg-module-platform: #222836;
-    --dsw-alias-focus-ring: rgba(76,141,255,.35);
-    --dsw-radius-md: 8px; --dsw-radius-lg: 12px; --dsw-radius-pill: 999px;
-    --dsw-space-1: 4px; --dsw-space-2: 8px; --dsw-space-3: 12px; --dsw-space-4: 16px;
-    --dsw-font: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-    --dsw-font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
-  }
-  :root.light {
-    --dsw-alias-bg-base: #f6f7f9; --dsw-alias-bg-layer-1: #ffffff; --dsw-alias-bg-layer-2: #f0f2f6;
-    --dsw-alias-border-l1: #e2e5eb; --dsw-alias-border-l2: #d5dae3;
-    --dsw-alias-label-primary: #1c2129; --dsw-alias-label-secondary: #5a6372; --dsw-alias-label-tertiary: #8a93a3;
-    --dsw-alias-interactive-bg-hover: rgba(0,0,0,.05); --dsw-alias-bg-module-platform: #e8ebf1;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: 14px/1.5 var(--dsw-font); height: 100vh; display: flex; overflow: hidden; }
-  /* DSH-style rail sidebar */
-  .rail { width: 64px; background: var(--dsw-alias-bg-layer-1); border-right: 1px solid var(--dsw-alias-border-l1); display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 6px; flex: none; }
-  .rail .logo { font-size: 22px; margin-bottom: 10px; }
-  .rail .rail-item { width: 44px; height: 44px; border-radius: var(--dsw-radius-lg); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--dsw-alias-label-secondary); font-size: 16px; }
-  .rail .rail-item:hover { background: var(--dsw-alias-interactive-bg-hover); }
-  .rail .rail-item.active { background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-brand-primary); }
-  .rail .spacer { flex: 1; }
-  /* main area */
-  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  header { display: flex; align-items: center; gap: var(--dsw-space-2); padding: var(--dsw-space-3) var(--dsw-space-4); background: var(--dsw-alias-bg-layer-1); border-bottom: 1px solid var(--dsw-alias-border-l1); }
-  header h1 { font-size: 15px; font-weight: 600; margin-right: var(--dsw-space-2); }
-  header .spacer { flex: 1; }
-  .panel { display: flex; flex: 1; min-height: 0; }
-  .list { width: 300px; border-right: 1px solid var(--dsw-alias-border-l1); overflow-y: auto; background: var(--dsw-alias-bg-layer-1); }
-  .list-item { display: flex; align-items: center; gap: var(--dsw-space-2); padding: var(--dsw-space-3) var(--dsw-space-4); border-bottom: 1px solid var(--dsw-alias-border-l1); cursor: pointer; }
-  .list-item:hover { background: var(--dsw-alias-interactive-bg-hover); }
-  .list-item.active { background: var(--dsw-alias-interactive-bg-active); box-shadow: inset 2px 0 0 var(--dsw-alias-brand-primary); }
-  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-  .dot.on { background: var(--dsw-alias-state-success-primary); }
-  .dot.off { background: var(--dsw-alias-label-tertiary); }
-  .list-item .id { font-weight: 500; }
-  .list-item .meta { font-size: 12px; color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .list-item .src { font-size: 10px; padding: 1px 6px; border-radius: 6px; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); flex: none; }
-  .detail { flex: 1; padding: var(--dsw-space-4) var(--dsw-space-5,20px); overflow-y: auto; }
-  .detail h2 { font-size: 17px; margin-bottom: 4px; }
-  .detail .sub { color: var(--dsw-alias-label-secondary); margin-bottom: var(--dsw-space-4); }
-  .kv { display: grid; grid-template-columns: 110px 1fr; gap: var(--dsw-space-2) var(--dsw-space-3); margin-bottom: var(--dsw-space-4); }
-  .kv dt { color: var(--dsw-alias-label-tertiary); }
-  .kv dd { word-break: break-all; }
-  .actions { display: flex; gap: var(--dsw-space-2); margin-top: var(--dsw-space-2); flex-wrap: wrap; }
-  select, input, textarea, button { font: inherit; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); padding: 6px 10px; }
-  button { cursor: pointer; }
-  button:hover { border-color: var(--dsw-alias-brand-primary); }
-  button.primary { background: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); color: #fff; }
-  .empty { color: var(--dsw-alias-label-tertiary); padding: 40px; text-align: center; }
-  .list-item.dragging { opacity: .5; }
-  .list-item.drag-over { border-top: 2px solid var(--dsw-alias-brand-primary); }
-  textarea { font-family: var(--dsw-font-mono); font-size: 12px; }
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <h1>🧩 DSH Plugin Manager</h1>
-  <label data-i18n="profile">profile</label>
-  <select id="profile"></select>
-  <button onclick="loadProfiles()" data-i18n="refresh">刷新</button>
-  <span id="dshStatus" class="dot off" title="dsh web 状态"></span>
-  <button id="startBtn" onclick="startDsh()" data-i18n="start">启动 dsh</button>
-  <button id="stopBtn" onclick="stopDsh()" data-i18n="stop">停止 dsh</button>
+<div class="rail">
+  <div class="logo">🧩</div>
+  <div id="profileItems"></div>
   <div class="spacer"></div>
-  <input id="searchInput" data-i18n-ph="search" style="width: 140px" oninput="renderList()">
-  <button onclick="openSearch()" data-i18n="find">🔍 搜插件</button>
-  <button onclick="exportProfile()" data-i18n="export">导出</button>
-  <button onclick="importProfile()" data-i18n="import">导入</button>
-  <button onclick="checkUpdates()">⬆ 更新</button>
-  <button onclick="toggleTheme()" id="themeBtn">🌙</button><button onclick="setLang(LANG==='zh'?'en':'zh')" id="langBtn">EN</button>
-  <input id="installInput" data-i18n-ph="pkgName" style="width: 200px">
-  <button class="primary" onclick="installPlugin()" data-i18n="install">安装</button>
-</header>
-<div class="main">
-  <div class="list" id="list"></div>
-  <div class="detail" id="detail"><div class="empty" id="emptyHint"></div></div>
+  <div class="dot" id="dshDot"></div>
+</div>
+<div class="app">
+  <header>
+    <h1>DSH Plugin Manager</h1>
+    <button class="btn sm" onclick="loadProfiles()">刷新</button>
+    <div class="spacer"></div>
+    <button class="btn sm" onclick="checkUpdates()">⬆</button>
+    <button class="btn sm" onclick="toggleTheme()" id="themeBtn">🌙</button>
+    <button class="btn sm" onclick="setLang(LANG==='zh'?'en':'zh')" id="langBtn">EN</button>
+  </header>
+  <div class="body">
+    <div class="side">
+      <div class="sw"><input id="searchInput" placeholder="搜索…" oninput="renderList()"></div>
+      <div class="list" id="list"></div>
+    </div>
+    <div class="detail" id="detail"><div class="empty" id="emptyHint"></div></div>
+  </div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
 const I18N = {
-  zh: {
-    title: "🧩 DSH 插件管理器", profile: "profile", refresh: "刷新", start: "启动 dsh", stop: "停止 dsh",
-    search: "搜索…", find: "🔍 搜插件", export: "导出", import: "导入", install: "安装", theme: "🌙",
-    installing: "安装", searchPh: "npm 搜索 DSH 插件…", doSearch: "搜索", searching: "搜索中…",
-    none: "无结果", empty: "选择一个插件查看详情", noPlugins: "无插件", enabled: "已启用", disabled: "已禁用",
-    source: "来源", name: "名称", version: "版本", status: "状态", compat: "兼容", config: "config",
-    enable: "启用", disable: "禁用", removeBundle: "从 bundles 移除", saveConfig: "保存 config",
-    configPh: "插件 config（JSON，留空表示无）", installOk: "已安装", restartNote: "（重启 dsh 生效）",
-    installFail: "安装失败", importConfirm: "导入将覆盖 {p} 的 bundles/patch（会自动备份），继续？",
-    importOk: "已导入", importFail: "导入失败", saved: "已保存", saveFail: "保存失败",
-    startOk: "已启动 dsh web（{p}）", startFail: "启动失败", stopConfirm: "确定停止 dsh web？", stopOk: "已停止 dsh web",
-    stopFail: "停止失败", running: "dsh web 运行中", stopped: "dsh web 未运行",
-    pkgName: "npm 包名…", toastFail: "加载失败", invalidJson: "文件不是合法 JSON",
-    bundleSrc: "bundle（dsh.profile.bundles）", patchSrc: "patch（cordis.patch.yml）",
-    orderUpdated: "bundle 顺序已更新", orderFail: "排序失败", exportFail: "导出失败",
-  },
-  en: {
-    title: "🧩 DSH Plugin Manager", profile: "profile", refresh: "Refresh", start: "Start dsh", stop: "Stop dsh",
-    search: "Search…", find: "🔍 Find plugins", export: "Export", import: "Import", install: "Install", theme: "🌙",
-    installing: "Install", searchPh: "Search npm for DSH plugins…", doSearch: "Search", searching: "Searching…",
-    none: "No results", empty: "Select a plugin to view details", noPlugins: "No plugins", enabled: "enabled", disabled: "disabled",
-    source: "Source", name: "Name", version: "Version", status: "Status", compat: "Compat", config: "config",
-    enable: "Enable", disable: "Disable", removeBundle: "Remove from bundles", saveConfig: "Save config",
-    configPh: "Plugin config (JSON, empty = none)", installOk: "Installed", restartNote: " (restart dsh to apply)",
-    installFail: "Install failed", importConfirm: "Import will overwrite {p} bundles/patch (auto-backed up), continue?",
-    importOk: "Imported", importFail: "Import failed", saved: "Saved", saveFail: "Save failed",
-    startOk: "Started dsh web ({p})", startFail: "Start failed", stopConfirm: "Stop dsh web?", stopOk: "Stopped dsh web",
-    stopFail: "Stop failed", running: "dsh web running", stopped: "dsh web not running",
-    pkgName: "npm package…", toastFail: "Load failed", invalidJson: "Not valid JSON",
-    bundleSrc: "bundle (dsh.profile.bundles)", patchSrc: "patch (cordis.patch.yml)",
-    orderUpdated: "bundle order updated", orderFail: "Reorder failed", exportFail: "Export failed",
-  }
+  zh: { enabled: "已启用", disabled: "已禁用", source: "来源", name: "名称", version: "版本", status: "状态", compat: "兼容", config: "config", enable: "启用", disable: "禁用", removeBundle: "移除", saveConfig: "保存 config", configPh: "插件 config（JSON，留空表示无）", empty: "选择插件查看详情", none: "无插件", running: "dsh web 运行中", stopped: "dsh web 未运行" },
+  en: { enabled: "enabled", disabled: "disabled", source: "Source", name: "Name", version: "Version", status: "Status", compat: "Compat", config: "config", enable: "Enable", disable: "Disable", removeBundle: "Remove", saveConfig: "Save config", configPh: "Plugin config (JSON, empty = none)", empty: "Select a plugin", none: "No plugins", running: "dsh web running", stopped: "dsh web stopped" }
 };
 let LANG = localStorage.getItem("dpm-lang") || "zh";
-const t = (k, vars) => {
-  let s = (I18N[LANG] || I18N.zh)[k] ?? k;
-  if (vars) for (const [kk, v] of Object.entries(vars)) s = s.replace("{" + kk + "}", v);
-  return s;
-};
-function setLang(l) { LANG = l; localStorage.setItem("dpm-lang", l); applyI18n(); loadPlugins(); }
-function applyI18n() {
-  document.querySelectorAll("[data-i18n]").forEach((el) => (el.textContent = t(el.dataset.i18n)));
-  document.querySelectorAll("[data-i18n-ph]").forEach((el) => (el.placeholder = t(el.dataset.i18nPh)));
-  const eh = document.getElementById("emptyHint");
-  if (eh) eh.textContent = t("empty");
-  document.getElementById("langBtn").textContent = LANG === "zh" ? "EN" : "中文";
-  document.title = t("title");
-}
-let currentProfile = null;
-let plugins = [];
+const t = (k) => (I18N[LANG] || I18N.zh)[k] ?? k;
+function setLang(l) { LANG = l; localStorage.setItem("dpm-lang", l); renderList(); if (plugins.length) selectPlugin(plugins[0].id); }
 
-// Desktop mode: call Tauri commands; fallback to HTTP when running as webui.
 const invoke = window.__TAURI__?.core?.invoke || null;
 async function api(path, opts) {
   if (invoke) {
@@ -185,76 +71,37 @@ async function api(path, opts) {
   if (!res.ok) throw new Error(data.error || res.status);
   return data;
 }
-function toast(msg) {
-  const el = document.getElementById("toast");
-  el.textContent = msg; el.style.display = "block";
-  clearTimeout(el._t); el._t = setTimeout(() => (el.style.display = "none"), 2500);
-}
+
+let currentProfile = null, plugins = [], updates = {}, dshRunning = false;
+
+function toast(msg) { const el = document.getElementById("toast"); el.textContent = msg; el.style.display = "block"; clearTimeout(el._t); el._t = setTimeout(() => (el.style.display = "none"), 2200); }
+
 async function loadProfiles() {
   try {
     const data = await api("/api/profiles");
     const box = document.getElementById("profileItems");
     box.innerHTML = "";
     for (const p of data.profiles) {
-      const item = document.createElement("div");
-      item.className = "rail-item" + (p === (data.current || p) && !currentProfile ? " active" : "");
-      item.textContent = p.charAt(0).toUpperCase();
-      item.title = p;
-      item.onclick = () => { currentProfile = p; renderRail(); loadPlugins(); };
-      if (p === currentProfile) item.classList.add("active");
-      box.appendChild(item);
+      const it = document.createElement("div");
+      it.className = "ri"; it.textContent = p.charAt(0).toUpperCase(); it.title = p;
+      it.onclick = () => { currentProfile = p; renderRail(); loadPlugins(); };
+      box.appendChild(it);
     }
     if (!currentProfile) currentProfile = data.current || data.profiles[0];
     renderRail();
     await loadPlugins();
-  } catch (e) { toast(t("toastFail") + ": " + e.message); }
+  } catch (e) { toast("加载失败: " + e.message); }
 }
 function renderRail() {
-  document.querySelectorAll("#profileItems .rail-item").forEach((el) => {
-    const name = el.title;
-    el.classList.toggle("active", name === currentProfile);
-  });
-  const st = document.getElementById("dshStatusItem");
-  if (st) st.style.color = dshRunning ? "var(--dsw-alias-state-success-primary)" : "var(--dsw-alias-label-tertiary)";
-}
-async function refreshDshStatus() {
-  try {
-    const s = await api("/api/dsh-status");
-    dshRunning = s.running;
-    renderRail();
-  } catch {}
-}
-async function startDsh() {
-  try {
-    const r = await api("/api/dsh-start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile }) });
-    toast(r.ok ? t("startOk", { p: currentProfile }) : t("startFail") + ": " + (r.error || ""));
-    setTimeout(refreshDshStatus, 2000);
-  } catch (e) { toast(t("startFail") + ": " + e.message); }
-}
-async function stopDsh() {
-  if (!confirm(t("stopConfirm"))) return;
-  try {
-    const r = await api("/api/dsh-stop", { method: "POST" });
-    toast(r.ok ? t("stopOk") : t("stopFail"));
-    setTimeout(refreshDshStatus, 1500);
-  } catch (e) { toast(t("stopFail") + ": " + e.message); }
-}
-async function saveConfig(id) {
-  const ta = document.getElementById("configEditor");
-  let value;
-  try { value = ta.value.trim() ? JSON.parse(ta.value) : null; }
-  catch { return toast(t("invalidJson")); }
-  try {
-    await api("/api/config", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id, config: value }) });
-    toast(t("saved") + " " + id + " " + t("config"));
-    await loadPlugins();
-  } catch (e) { toast(t("saveFail") + ": " + e.message); }
+  document.querySelectorAll("#profileItems .ri").forEach((el) => el.classList.toggle("active", el.title === currentProfile));
+  document.getElementById("dshDot").className = "dot" + (dshRunning ? " on" : "");
+  document.getElementById("dshDot").title = dshRunning ? "dsh web 运行中" : "dsh web 未运行";
 }
 async function loadPlugins() {
   const data = await api("/api/plugins?profile=" + encodeURIComponent(currentProfile));
   plugins = data.plugins;
   renderList();
-  if (plugins.length) selectPlugin(plugins[0].id); else document.getElementById("detail").innerHTML = '<div class="empty">' + t("noPlugins") + "</div>";
+  if (plugins.length) selectPlugin(plugins[0].id); else document.getElementById("detail").innerHTML = '<div class="empty">' + t("none") + "</div>";
 }
 function renderList() {
   const list = document.getElementById("list");
@@ -263,214 +110,113 @@ function renderList() {
   const filtered = q ? plugins.filter((p) => (p.id + " " + (p.name || "") + " " + (p.description || "")).toLowerCase().includes(q)) : plugins;
   for (const p of filtered) {
     const row = document.createElement("div");
-    row.className = "list-item" + (document.querySelector(".list-item.active")?.dataset?.id === p.id ? " active" : "");
-    row.dataset.id = p.id;
+    row.className = "pl"; row.dataset.id = p.id;
     row.draggable = p.kind === "bundle";
     row.onclick = () => selectPlugin(p.id);
     row.ondragstart = (e) => { e.dataTransfer.setData("text/plain", p.name); row.classList.add("dragging"); };
     row.ondragover = (e) => { if (p.kind === "bundle") { e.preventDefault(); row.classList.add("drag-over"); } };
     row.ondragleave = () => row.classList.remove("drag-over");
     row.ondrop = (e) => { e.preventDefault(); row.classList.remove("drag-over"); reorderBundles(e.dataTransfer.getData("text/plain"), p.name); };
-    const dot = document.createElement("span");
-    dot.className = "dot " + (p.disabled ? "off" : p.kind === "bundle" ? "on" : "on");
-    const id = document.createElement("span");
-    id.className = "id"; id.textContent = p.id;
-    const src = document.createElement("span");
-    src.className = "src"; src.textContent = p.kind === "bundle" ? "bundle" : "patch";
-    const meta = document.createElement("span");
-    meta.className = "meta"; meta.textContent = p.disabled ? t("disabled") : t("enabled");
-    if (updates[p.id]) {
-      const upd = document.createElement("span");
-      upd.className = "src"; upd.style.background = "var(--warn)"; upd.style.color = "#000";
-      upd.textContent = "⬆ " + updates[p.id].latest;
-      row.append(upd);
-    }
-    row.append(dot, id, meta, src);
+    const st = document.createElement("span"); st.className = "st " + (p.disabled ? "off" : "on");
+    const id = document.createElement("span"); id.className = "id"; id.textContent = p.id;
+    const note = document.createElement("span"); note.className = "note"; note.textContent = p.disabled ? "⛔" : "";
+    const tag = document.createElement("span"); tag.className = "tag" + (updates[p.id] ? " upd" : ""); tag.textContent = updates[p.id] ? "⬆" + updates[p.id].latest : (p.kind === "bundle" ? "b" : "p");
+    row.append(st, id, note, tag);
     list.appendChild(row);
   }
+  if (!filtered.length) list.innerHTML = '<div class="empty">—</div>';
 }
-async function selectPlugin(id) {
+function selectPlugin(id) {
   const p = plugins.find((x) => x.id === id);
   if (!p) return;
-  document.querySelectorAll(".list-item").forEach((r) => r.classList.toggle("active", r.dataset.id === id));
+  document.querySelectorAll(".pl").forEach((r) => r.classList.toggle("active", r.dataset.id === id));
   const d = document.getElementById("detail");
-  d.innerHTML = "";
-  const h = document.createElement("h2"); h.textContent = p.id; d.appendChild(h);
-  const sub = document.createElement("div"); sub.className = "sub"; sub.textContent = p.description || p.name || ""; d.appendChild(sub);
-  const kv = document.createElement("dl"); kv.className = "kv";
+  const h = '<div class="hd"><h2>' + p.id + '</h2><span class="badge ' + (p.disabled ? "off" : "on") + '">' + (p.disabled ? t("disabled") : t("enabled")) + "</span></div>";
+  const sub = '<div class="sub">' + (p.description || p.name || "") + "</div>";
   const rows = [
-    [t("source"), p.kind === "bundle" ? t("bundleSrc") : t("patchSrc")],
-    [t("name"), p.name],
-    [t("version"), p.version || "—"],
-    [t("status"), p.disabled ? t("disabled") : t("enabled")],
+    [t("source"), p.kind === "bundle" ? "bundle" : "patch"],
+    [t("name"), p.name], [t("version"), p.version || "—"], [t("status"), p.disabled ? t("disabled") : t("enabled")]
   ];
-  for (const [k, v] of rows) {
-    const dt = document.createElement("dt"); dt.textContent = k;
-    const dd = document.createElement("dd"); dd.textContent = v;
-    kv.append(dt, dd);
-  }
-  d.appendChild(kv);
-  const cdt = document.createElement("dt"); cdt.textContent = t("config");
-  const cdd = document.createElement("dd");
-  cdd.style.display = "flex"; cdd.style.flexDirection = "column"; cdd.style.gap = "6px";
-  const ta = document.createElement("textarea");
-  ta.id = "configEditor"; ta.rows = 4; ta.style.font = "12px monospace"; ta.style.width = "100%"; ta.style.boxSizing = "border-box";
-  ta.value = p.config ? JSON.stringify(p.config, null, 2) : "";
-  ta.placeholder = t("configPh");
-  const save = document.createElement("button");
-  save.textContent = t("saveConfig");
-  save.onclick = () => saveConfig(p.id);
-  cdd.append(ta, save);
-  kv.append(cdt, cdd);
-  const actions = document.createElement("div"); actions.className = "actions";
-  if (!p.disabled) {
-    const b = document.createElement("button");
-    b.textContent = t("disable");
-    b.onclick = async () => { await api("/api/toggle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id: p.id, disabled: true }) }); toast(t("disable") + " " + p.id); await loadPlugins(); };
-    actions.appendChild(b);
-  } else {
-    const b = document.createElement("button"); b.className = "primary";
-    b.textContent = t("enable");
-    b.onclick = async () => { await api("/api/toggle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id: p.id, disabled: false }) }); toast(t("enable") + " " + p.id); await loadPlugins(); };
-    actions.appendChild(b);
-  }
-  if (p.kind === "bundle") {
-    const repo = document.createElement("button");
-    repo.textContent = "GitHub";
-    repo.onclick = async () => { const r = await api("/api/open-repo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name: p.name }) }); if (!r.ok) toast(r.error || "no repo"); };
-    actions.appendChild(repo);
-    const r = document.createElement("button");
-    r.textContent = t("removeBundle");
-    r.onclick = async () => { await api("/api/bundle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name: p.name, enabled: false }) }); toast("bundle " + p.name + " " + t("removeBundle")); await loadPlugins(); };
-    actions.appendChild(r);
-  }
-  d.appendChild(actions);
+  if (p.has_bundle || p.has_client) rows.push([t("compat"), [p.has_bundle ? "dsh.bundle ✓" : null, p.has_client ? "dsh.client ✓" : null].filter(Boolean).join("  ")]);
+  if (p.author) rows.push(["author", p.author]);
+  if (p.license) rows.push(["license", p.license]);
+  let grid = '<div class="row">';
+  for (const [k, v] of rows) grid += "<dt>" + k + "</dt><dd>" + v + "</dd>";
+  grid += '<dt>' + t("config") + "</dt><dd><textarea id="configEditor" placeholder="" + t("configPh") + '">' + (p.config ? JSON.stringify(p.config, null, 2) : "") + "</textarea></dd></div>";
+  let acts = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">';
+  acts += '<button class="btn ' + (p.disabled ? "primary" : "") + '" onclick="togglePlugin('' + p.id + '',' + (p.disabled ? "false" : "true") + ')">' + (p.disabled ? t("enable") : t("disable")) + "</button>";
+  acts += '<button class="btn" onclick="saveConfig('' + p.id + '')">' + t("saveConfig") + "</button>";
+  if (p.kind === "bundle") acts += '<button class="btn" onclick="openRepo('' + p.name + '')">GitHub</button><button class="btn danger" onclick="removeBundle('' + p.name + '')">' + t("removeBundle") + "</button>";
+  acts += "</div>";
+  d.innerHTML = h + sub + grid + acts;
 }
+async function togglePlugin(id, disabled) {
+  await api("/api/toggle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id, disabled }) });
+  toast((disabled ? "禁用 " : "启用 ") + id); await loadPlugins();
+}
+async function saveConfig(id) {
+  let value; try { value = document.getElementById("configEditor").value.trim() ? JSON.parse(document.getElementById("configEditor").value) : null; } catch { return toast("config 非 JSON"); }
+  await api("/api/config", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id, config: value }) });
+  toast(t("saveConfig") + " ✓"); await loadPlugins();
+}
+async function removeBundle(name) {
+  if (!confirm("从 bundles 移除 " + name + "?")) return;
+  await api("/api/bundle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name, enabled: false }) });
+  await loadPlugins();
+}
+async function openRepo(name) { const r = await api("/api/open-repo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name }) }); if (!r.ok) toast(r.error || "no repo"); }
 async function reorderBundles(from, to) {
   if (!from || !to || from === to) return;
   const names = plugins.filter((p) => p.kind === "bundle").map((p) => p.name);
   const i = names.indexOf(from), j = names.indexOf(to);
   if (i < 0 || j < 0) return;
   names.splice(i, 1); names.splice(j, 0, from);
-  try {
-    await api("/api/reorder", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, bundles: names }) });
-    toast(t("orderUpdated"));
-    await loadPlugins();
-  } catch (e) { toast(t("orderFail") + ": " + e.message); }
+  await api("/api/reorder", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, bundles: names }) });
+  await loadPlugins();
 }
-async function exportProfile() {
-  try {
-    const data = await api("/api/export?profile=" + encodeURIComponent(currentProfile));
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "dsh-profile-" + currentProfile + "-plugins.json";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  } catch (e) { toast(t("exportFail") + ": " + e.message); }
-}
-let updates = {};
 async function checkUpdates() {
-  try {
-    toast("检查中…");
-    const list = await api("/api/updates?profile=" + encodeURIComponent(currentProfile));
-    updates = {};
-    for (const u of list) if (u.hasUpdate) updates[u.id] = u;
-    renderList();
-    const n = Object.keys(updates).length;
-    toast(n ? n + " 个插件有更新" : "全部最新");
-  } catch (e) { toast("检查失败: " + e.message); }
+  toast("检查中…");
+  const list = await api("/api/updates?profile=" + encodeURIComponent(currentProfile));
+  updates = {}; for (const u of list) if (u.hasUpdate) updates[u.id] = u;
+  renderList(); toast(Object.keys(updates).length ? Object.keys(updates).length + " 个有更新" : "全部最新");
 }
+async function refreshDshStatus() { try { const s = await api("/api/dsh-status"); dshRunning = s.running; renderRail(); } catch {} }
+async function startDsh() { const r = await api("/api/dsh-start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile }) }); toast(r.ok ? "已启动 dsh" : "启动失败"); setTimeout(refreshDshStatus, 2000); }
+async function stopDsh() { if (!confirm("停止 dsh web?")) return; const r = await api("/api/dsh-stop", { method: "POST" }); toast(r.ok ? "已停止" : "停止失败"); setTimeout(refreshDshStatus, 1500); }
+function toggleTheme() { document.documentElement.classList.toggle("light"); }
 function openSearch() {
-  const existing = document.getElementById("searchModal");
-  if (existing) { existing.remove(); return; }
-  const modal = document.createElement("div");
-  modal.id = "searchModal";
-  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10";
-  const panel = document.createElement("div");
-  panel.style.cssText = "background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;width:560px;max-height:70vh;display:flex;flex-direction:column;gap:8px";
-  const head = document.createElement("div");
-  head.style.cssText = "display:flex;gap:8px;align-items:center";
-  const input = document.createElement("input");
-  input.placeholder = t("searchPh"); input.style.flex = "1";
-  const go = document.createElement("button"); go.textContent = t("doSearch"); go.className = "primary";
-  const close = document.createElement("button"); close.textContent = "✕";
-  close.onclick = () => modal.remove();
+  const mask = document.createElement("div"); mask.className = "modal-mask";
+  const modal = document.createElement("div"); modal.className = "modal";
+  const head = document.createElement("div"); head.className = "mh";
+  const input = document.createElement("input"); input.placeholder = "搜索 npm DSH 插件…";
+  const go = document.createElement("button"); go.className = "btn primary"; go.textContent = "搜索";
+  const close = document.createElement("button"); close.className = "btn"; close.textContent = "✕";
+  close.onclick = () => mask.remove();
   head.append(input, go, close);
-  const results = document.createElement("div");
-  results.style.cssText = "overflow-y:auto;display:flex;flex-direction:column;gap:6px";
+  const res = document.createElement("div"); res.className = "mr";
   go.onclick = async () => {
-    results.innerHTML = '<div class="empty">' + t("searching") + "</div>";
+    res.innerHTML = '<div class="empty">搜索中…</div>';
     try {
       const list = await api("/api/search?q=" + encodeURIComponent(input.value));
-      if (!Array.isArray(list)) { results.innerHTML = '<div class="empty">' + (list.error || "无结果") + "</div>"; return; }
-      results.innerHTML = "";
+      if (!Array.isArray(list)) { res.innerHTML = '<div class="empty">' + (list.error || "无结果") + "</div>"; return; }
+      res.innerHTML = "";
       for (const p of list.slice(0, 30)) {
-        const row = document.createElement("div");
-        row.style.cssText = "display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:8px";
-        const info = document.createElement("div");
-        info.style.flex = "1";
-        info.innerHTML = "<b>" + (p.name || "") + "</b> <span style='color:var(--muted)'>" + (p.version || "") + "</span><br><small style='color:var(--muted)'>" + (p.description || "") + "</small>";
-        const btn = document.createElement("button");
-        btn.textContent = t("install");
-        btn.className = "primary";
-        btn.onclick = async () => {
-          btn.disabled = true; btn.textContent = "…";
-          try {
-            const r = await api("/api/install", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, package: p.name }) });
-            toast(r.ok ? "已安装 " + p.name + "（重启 dsh 生效）" : "安装失败: " + r.output);
-            if (r.ok) await loadPlugins();
-          } catch (e) { toast(t("installFail") + ": " + e.message); }
-          btn.disabled = false; btn.textContent = "安装";
-        };
-        row.append(info, btn);
-        results.appendChild(row);
+        const row = document.createElement("div"); row.className = "mi";
+        const info = document.createElement("div"); info.className = "info";
+        info.innerHTML = "<b>" + (p.name || "") + "</b> <span style='color:var(--dim)'>" + (p.version || "") + "</span><small>" + (p.description || "") + "</small>";
+        const btn = document.createElement("button"); btn.className = "btn sm primary"; btn.textContent = "安装";
+        btn.onclick = async () => { btn.disabled = true; const r = await api("/api/install", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, package: p.name }) }); toast(r.ok ? "已安装 " + p.name : "安装失败"); if (r.ok) await loadPlugins(); btn.disabled = false; };
+        row.append(info, btn); res.appendChild(row);
       }
-      if (!list.length) results.innerHTML = '<div class="empty">' + t("none") + "</div>";
-    } catch (e) { results.innerHTML = '<div class="empty">' + e.message + "</div>"; }
+    } catch (e) { res.innerHTML = '<div class="empty">' + e.message + "</div>"; }
   };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") go.click(); });
-  panel.append(head, results);
-  modal.appendChild(panel);
-  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-  document.body.appendChild(modal);
-  input.focus();
+  modal.append(head, res); mask.appendChild(modal);
+  mask.onclick = (e) => { if (e.target === mask) mask.remove(); };
+  document.body.appendChild(mask); input.focus();
 }
-function importProfile() {
-  const file = document.createElement("input");
-  file.type = "file"; file.accept = ".json";
-  file.onchange = async () => {
-    const f = file.files[0];
-    if (!f) return;
-    const text = await f.text();
-    let data;
-    try { data = JSON.parse(text); } catch { return toast(t("invalidJson")); }
-    if (!confirm(t("importConfirm", { p: currentProfile }))) return;
-    try {
-      await api("/api/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, bundles: data.bundles || [], patch: data.patchEntries || null }) });
-      toast(t("importOk") + " " + currentProfile);
-      await loadPlugins();
-    } catch (e) { toast(t("importFail") + ": " + e.message); }
-  };
-  file.click();
-}
-function toggleTheme() {
-  const root = document.documentElement;
-  const light = root.classList.toggle("light");
-  document.getElementById("themeBtn").textContent = light ? "☀️" : "🌙";
-}
-async function installPlugin() {
-  const input = document.getElementById("installInput");
-  const pkg = input.value.trim();
-  if (!pkg) return toast(t("pkgName"));
-  try {
-    const r = await api("/api/install", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, package: pkg }) });
-    toast(r.ok ? t("installOk") + t("restartNote") : t("installFail") + ": " + r.output);
-    input.value = "";
-    await loadPlugins();
-  } catch (e) { toast("安装失败: " + e.message); }
-}
-let dshRunning = false;
+// header quick actions (start/stop dsh kept minimal — dsh is usually managed by the user's own workflow)
+document.querySelector(".logo").title = "DSH Plugin Manager";
 loadProfiles();
 refreshDshStatus();
 setInterval(refreshDshStatus, 10000);

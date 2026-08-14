@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-manager",
-  "version": "0.1.0",
-  "description": "A GUI to manage DSH plugins across profiles — inspired by cc-switch: list, enable/disable, install, and inspect plugins in your DSH profiles.",
+  "version": "0.2.0",
+  "description": "Desktop GUI + CLI to manage DSH plugins across profiles (Tauri 2, cc-switch/DSH style)",
   "type": "module",
   "main": "lib/server.mjs",
   "bin": {
