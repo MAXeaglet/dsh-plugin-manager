@@ -18,7 +18,7 @@
     <h1>DSH Plugin Manager</h1>
     <span style="color:var(--dim);font-family:var(--mono);font-size:11.5px" id="profileLabel"></span>
     <div class="spacer"></div>
-    <button class="btn" onclick="togglePure()" id="pureBtn" title="纯净模式：禁用所有第三方插件">🧹 纯净模式</button>
+    <button class="btn" onclick="showProfileFiles()" title="view profile files">📄 配置文件</button>
     <input id="dshPort" type="number" min="1" max="65535" value="3080" title="dsh web 端口" style="width:64px;background:var(--bg-2,transparent);border:1px solid var(--border-l1,currentColor);color:inherit;border-radius:18px;padding:5px 10px;font-family:var(--mono);font-size:12px;text-align:center">
     <button class="btn primary" onclick="startDsh()" title="启动 dsh web">▶ 启动 dsh</button>
     <button class="btn" onclick="stopDsh()" title="停止 dsh web">⏹ 停止</button>
@@ -38,8 +38,8 @@
 <div class="toast" id="toast"></div>
 <script>
 const I18N = {
-  zh: { enabled: "已启用", disabled: "已禁用", source: "来源", name: "名称", version: "版本", status: "状态", compat: "兼容", config: "config", enable: "启用", disable: "禁用", removeBundle: "移除", saveConfig: "保存 config", configPh: "插件 config（JSON，留空表示无）", empty: "选择插件查看详情", none: "无插件", running: "dsh web 运行中", stopped: "dsh web 未运行" },
-  en: { enabled: "enabled", disabled: "disabled", source: "Source", name: "Name", version: "Version", status: "Status", compat: "Compat", config: "config", enable: "Enable", disable: "Disable", removeBundle: "Remove", saveConfig: "Save config", configPh: "Plugin config (JSON, empty = none)", empty: "Select a plugin", none: "No plugins", running: "dsh web running", stopped: "dsh web stopped" }
+  zh: { enabled: "已启用", disabled: "已禁用", source: "来源", name: "名称", version: "版本", status: "状态", compat: "兼容", config: "config", enable: "启用", disable: "禁用", removeBundle: "移除", saveConfig: "保存 config", configPh: "插件 config（JSON，留空表示无）", empty: "选择插件查看详情", none: "无插件", running: "dsh web 运行中", stopped: "dsh web 未运行", readme: "README", profileFiles: "配置文件" },
+  en: { enabled: "enabled", disabled: "disabled", source: "Source", name: "Name", version: "Version", status: "Status", compat: "Compat", config: "config", enable: "Enable", disable: "Disable", removeBundle: "Remove", saveConfig: "Save config", configPh: "Plugin config (JSON, empty = none)", empty: "Select a plugin", none: "No plugins", running: "dsh web running", stopped: "dsh web stopped", readme: "README", profileFiles: "Profile files" }
 };
 let LANG = localStorage.getItem("dpm-lang") || "zh";
 const t = (k) => (I18N[LANG] || I18N.zh)[k] ?? k;
@@ -69,6 +69,8 @@ async function api(path, opts) {
       case "/api/open-repo": return await invoke("open_plugin_repo", body);
       case "/api/updates": return await invoke("check_updates", { profile: qs.get("profile") });
       case "/api/purge": return await invoke("purge_third_party", body);
+      case "/api/readme": return await invoke("read_plugin_readme", { profile: qs.get("profile"), name: qs.get("name") });
+      case "/api/profile-files": return await invoke("read_profile_files", { profile: qs.get("profile") });
     }
     throw new Error("unknown api " + name);
   }
@@ -164,6 +166,8 @@ function selectPlugin(id) {
   tg.onclick = () => togglePlugin(p.id, !p.disabled);
   const sv = document.createElement("button"); sv.className = "btn"; sv.textContent = t("saveConfig"); sv.onclick = () => saveConfig(p.id);
   acts.append(tg, sv);
+  const rd = document.createElement("button"); rd.className = "btn"; rd.textContent = "📖 " + t("readme"); rd.onclick = () => showReadme(p);
+  acts.append(rd);
   if (p.kind === "bundle") {
     const gh = document.createElement("button"); gh.className = "btn"; gh.textContent = "GitHub"; gh.onclick = () => openRepo(p.name);
     const rm = document.createElement("button"); rm.className = "btn danger"; rm.textContent = t("removeBundle"); rm.onclick = () => removeBundle(p.name);
@@ -186,6 +190,46 @@ async function removeBundle(name) {
   await loadPlugins();
 }
 async function openRepo(name) { const r = await api("/api/open-repo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name }) }); if (!r.ok) toast(r.error || "no repo"); }
+async function showReadme(p) {
+  const r = await api("/api/readme?profile=" + encodeURIComponent(currentProfile) + "&name=" + encodeURIComponent(p.name));
+  const mask = document.createElement("div"); mask.className = "modal-mask";
+  const modal = document.createElement("div"); modal.className = "modal wide";
+  const head = document.createElement("div"); head.className = "mh";
+  const title = document.createElement("b"); title.textContent = p.id + " · README";
+  const close = document.createElement("button"); close.className = "btn"; close.textContent = "✕";
+  close.onclick = () => mask.remove();
+  head.append(title, close);
+  const body = document.createElement("pre"); body.className = "readme";
+  body.textContent = r.ok ? r.readme : ("（" + (r.error || "no README") + "）");
+  if (r.truncated) { const tip = document.createElement("div"); tip.className = "sub"; tip.textContent = "…（截断）"; modal.append(tip); }
+  modal.append(head, body);
+  mask.append(modal);
+  mask.onclick = (e) => { if (e.target === mask) mask.remove(); };
+  document.body.appendChild(mask);
+}
+async function showProfileFiles() {
+  if (!currentProfile) return;
+  const r = await api("/api/profile-files?profile=" + encodeURIComponent(currentProfile));
+  const mask = document.createElement("div"); mask.className = "modal-mask";
+  const modal = document.createElement("div"); modal.className = "modal wide";
+  const head = document.createElement("div"); head.className = "mh";
+  const title = document.createElement("b"); title.textContent = currentProfile + " · package.json / cordis.patch.yml";
+  const close = document.createElement("button"); close.className = "btn"; close.textContent = "✕";
+  close.onclick = () => mask.remove();
+  head.append(title, close);
+  modal.append(head);
+  const mk = (label, text) => {
+    const lab = document.createElement("div"); lab.className = "sub"; lab.textContent = label;
+    const pre = document.createElement("pre"); pre.className = "readme"; pre.textContent = text || "—";
+    modal.append(lab, pre);
+  };
+  mk("package.json", r.manifest);
+  mk("cordis.patch.yml", r.patch);
+  mask.append(modal);
+  mask.onclick = (e) => { if (e.target === mask) mask.remove(); };
+  document.body.appendChild(mask);
+}
+
 async function reorderBundles(from, to) {
   if (!from || !to || from === to) return;
   const names = plugins.filter((p) => p.kind === "bundle").map((p) => p.name);

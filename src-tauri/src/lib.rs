@@ -491,6 +491,47 @@ fn check_updates(profile: String) -> Json {
     }
     serde_json::json!(out)
 }
+fn bundle_dir(profile: &str, name: &str) -> Option<PathBuf> {
+    let candidates = [
+        profile_dir(profile).join("node_modules").join(name),
+        profiles_dir().join("node_modules").join(name),
+    ];
+    candidates.into_iter().find(|c| c.is_dir())
+}
+
+#[tauri::command]
+fn read_plugin_readme(profile: String, name: String) -> Json {
+    // find README.md in the bundle package dir (any case), cap at 8KB
+    let dir = bundle_dir(&profile, &name);
+    let readme = dir.and_then(|d| {
+        let candidates = ["README.md", "readme.md", "Readme.md", "README.MD"];
+        candidates.iter().find_map(|f| {
+            let p = d.join(f);
+            p.is_file().then(|| fs::read_to_string(&p).ok())
+        }).flatten()
+    });
+    match readme {
+        Some(text) => {
+            let capped: String = text.chars().take(8000).collect();
+            serde_json::json!({ "ok": true, "readme": capped, "truncated": text.len() > 8000 })
+        }
+        None => serde_json::json!({ "ok": false, "error": "no README" }),
+    }
+}
+
+#[tauri::command]
+fn read_profile_files(profile: String) -> Json {
+    let dir = profile_dir(&profile);
+    let manifest = fs::read_to_string(dir.join("package.json")).unwrap_or_default();
+    let patch = fs::read_to_string(dir.join("cordis.patch.yml")).unwrap_or_default();
+    serde_json::json!({
+        "manifest": manifest,
+        "patch": patch,
+        "manifestExists": !manifest.is_empty(),
+        "patchExists": !patch.is_empty(),
+    })
+}
+
 
 
 #[cfg(test)]
@@ -584,7 +625,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             list_profiles, list_plugins, set_plugin_disabled, set_bundle, set_bundle_order, export_profile, install_plugin,
-            dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config, search_npm, import_profile, open_plugin_repo, check_updates, purge_third_party
+            dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config, search_npm, import_profile, open_plugin_repo, check_updates, purge_third_party,
+            read_plugin_readme, read_profile_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
