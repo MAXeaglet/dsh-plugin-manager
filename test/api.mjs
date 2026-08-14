@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert";
-import { listPlugins, setPluginDisabled, setBundle, readProfile } from "../lib/profiles.mjs";
+import { listPlugins, setPluginDisabled, setBundle, setPluginConfig, readProfile } from "../lib/profiles.mjs";
 
 // redirect DSH_HOME to a temp dir
 const tmp = mkdtempSync(join(tmpdir(), "dpm-test-"));
@@ -45,5 +45,20 @@ assert.ok(readProfile("web").bundles.includes("@deepseek-ai/dsh-web-app"), "bund
 setBundle("web", "@deepseek-ai/dsh-web-app", false);
 assert.ok(!readProfile("web").bundles.includes("@deepseek-ai/dsh-web-app"), "bundle removed");
 
+
+// 5. regressions: enable/disable must NOT clobber name/config of an existing row
+setPluginDisabled("web", "tool-web", true);
+setPluginDisabled("web", "tool-web", false);
+const preserved = readProfile("web").patchEntries.find((e) => e.id === "tool-web");
+assert.strictEqual(preserved.name, "@deepseek-ai/dsh-tool-web", "name preserved through toggle");
+assert.deepStrictEqual(preserved.config, { search: false }, "config preserved through toggle");
+
+// 6. setPluginConfig updates in place, keeps other fields
+setPluginConfig("web", "tool-web", { search: true, extra: 1 });
+const cfg = readProfile("web").patchEntries.find((e) => e.id === "tool-web");
+assert.deepStrictEqual(cfg.config, { search: true, extra: 1 }, "config updated");
+assert.strictEqual(cfg.name, "@deepseek-ai/dsh-tool-web", "name intact after config set");
+
 rmSync(tmp, { recursive: true, force: true });
 console.log("API TESTS PASSED");
+
