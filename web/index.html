@@ -59,6 +59,7 @@
   <button onclick="openSearch()" data-i18n="find">🔍 搜插件</button>
   <button onclick="exportProfile()" data-i18n="export">导出</button>
   <button onclick="importProfile()" data-i18n="import">导入</button>
+  <button onclick="checkUpdates()">⬆ 更新</button>
   <button onclick="toggleTheme()" id="themeBtn">🌙</button><button onclick="setLang(LANG==='zh'?'en':'zh')" id="langBtn">EN</button>
   <input id="installInput" data-i18n-ph="pkgName" style="width: 200px">
   <button class="primary" onclick="installPlugin()" data-i18n="install">安装</button>
@@ -144,6 +145,7 @@ async function api(path, opts) {
       case "/api/search": return await invoke("search_npm", { query: qs.get("q") || "" });
       case "/api/import": return await invoke("import_profile", body);
       case "/api/open-repo": return await invoke("open_plugin_repo", body);
+      case "/api/updates": return await invoke("check_updates", { profile: qs.get("profile") });
     }
     throw new Error("unknown api " + name);
   }
@@ -236,6 +238,12 @@ function renderList() {
     src.className = "src"; src.textContent = p.kind === "bundle" ? "bundle" : "patch";
     const meta = document.createElement("span");
     meta.className = "meta"; meta.textContent = p.disabled ? t("disabled") : t("enabled");
+    if (updates[p.id]) {
+      const upd = document.createElement("span");
+      upd.className = "src"; upd.style.background = "var(--warn)"; upd.style.color = "#000";
+      upd.textContent = "⬆ " + updates[p.id].latest;
+      row.append(upd);
+    }
     row.append(dot, id, meta, src);
     list.appendChild(row);
   }
@@ -319,6 +327,18 @@ async function exportProfile() {
     a.click();
     URL.revokeObjectURL(a.href);
   } catch (e) { toast(t("exportFail") + ": " + e.message); }
+}
+let updates = {};
+async function checkUpdates() {
+  try {
+    toast("检查中…");
+    const list = await api("/api/updates?profile=" + encodeURIComponent(currentProfile));
+    updates = {};
+    for (const u of list) if (u.hasUpdate) updates[u.id] = u;
+    renderList();
+    const n = Object.keys(updates).length;
+    toast(n ? n + " 个插件有更新" : "全部最新");
+  } catch (e) { toast("检查失败: " + e.message); }
 }
 function openSearch() {
   const existing = document.getElementById("searchModal");

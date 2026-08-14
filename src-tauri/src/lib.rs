@@ -445,12 +445,39 @@ fn open_plugin_repo(app: tauri::AppHandle, profile: String, name: String) -> Jso
     }
 }
 
+fn npm_latest(name: &str) -> Option<String> {
+    let out = Command::new("npm").args(["view", name, "version"]).output().ok()?;
+    if out.status.success() {
+        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if !s.is_empty() { return Some(s); }
+    }
+    None
+}
+
+#[tauri::command]
+fn check_updates(profile: String) -> Json {
+    let mut out = Vec::new();
+    for p in list_plugins(profile.clone()) {
+        if p.kind == "bundle" {
+            if let Some(local) = p.version {
+                let latest = npm_latest(&p.name);
+                let has = latest.as_ref().is_some() && latest.as_ref() != Some(&local);
+                out.push(serde_json::json!({
+                    "id": p.id, "name": p.name, "local": local,
+                    "latest": latest, "hasUpdate": has,
+                }));
+            }
+        }
+    }
+    serde_json::json!(out)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             list_profiles, list_plugins, set_plugin_disabled, set_bundle, set_bundle_order, export_profile, install_plugin,
-            dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config, search_npm, import_profile, open_plugin_repo
+            dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config, search_npm, import_profile, open_plugin_repo, check_updates
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
