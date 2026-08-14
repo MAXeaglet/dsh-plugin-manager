@@ -35,7 +35,6 @@ html, body { height: 100%; }
 body { background: var(--bg); color: var(--text); font: 13px/1.5 var(--sans); display: flex; overflow: hidden; }
 /* rail */
 .rail { width: 52px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 2px; flex: none; }
-.rail .logo { font-size: 18px; margin-bottom: 10px; }
 .rail .ri { width: 36px; height: 36px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; cursor: pointer; font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--dim); }
 .rail .ri:hover { background: var(--panel2); color: var(--muted); }
 .rail .ri.active { background: var(--panel2); color: var(--accent); }
@@ -123,7 +122,7 @@ header .spacer { flex: 1; }
 .btn, .pl, .rail .ri, .modal .mi { transition: background-color .15s var(--ease), border-color .15s var(--ease), color .15s var(--ease); }
 
 /* rail logo: geometric mark instead of emoji */
-.rail .logo { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), rgb(103,158,254)); color: #fff; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-weight: 700; font-size: 13px; margin-bottom: 12px; }
+.rail .logo { width: 28px; height: 28px; border-radius: 8px; color: var(--text); display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
 
 /* header typography: monospace app name, tighter rhythm */
 header h1 { font-family: var(--mono); font-size: 12.5px; font-weight: 600; letter-spacing: .01em; margin-right: 8px; }
