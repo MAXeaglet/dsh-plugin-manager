@@ -26,13 +26,16 @@
     <button class="btn primary" onclick="startDsh()" id="startBtn" title="启动 dsh web">▶ 启动 dsh</button>
     <button class="btn" onclick="stopDsh()" id="stopBtn" title="停止 dsh web">⏹ 停止</button>
     <button class="btn" onclick="openSearch()" id="installBtn" title="搜索并安装插件">🔍 装插件</button>
-    <button class="btn sm" onclick="checkUpdates()" title="检查更新">⬆</button>
-    <button class="btn sm" onclick="toggleTheme()" id="themeBtn">🌙</button>
+    <button class="btn sm" onclick="checkUpdates()" title="检查更新" aria-label="check updates"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A5.5 5.5 0 1 1 2 10"/><path d="M2 3v3.5h3.5"/></svg></button>
+    <button class="btn sm" onclick="toggleTheme()" id="themeBtn" title="主题" aria-label="theme"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1"/></svg></button>
     <button class="btn sm" onclick="setLang(LANG==='zh'?'en':'zh')" id="langBtn">EN</button>
   </header>
   <div class="body">
     <div class="side">
-      <div class="sw"><input id="searchInput" placeholder="搜索…" oninput="renderList()"></div>
+      <div class="sw">
+        <input id="searchInput" placeholder="搜索…" oninput="renderList()" spellcheck="false">
+        <button class="sw-clear" id="searchClear" onclick="clearSearch()" aria-label="clear" style="display:none"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+      </div>
       <div class="list" id="list"></div>
     </div>
     <div class="detail" id="detail"><div class="empty" id="emptyHint"></div></div>
@@ -48,7 +51,8 @@ let LANG = localStorage.getItem("dpm-lang") || "zh";
 const t = (k) => (I18N[LANG] || I18N.zh)[k] ?? k;
 function setLang(l) {
   LANG = l; localStorage.setItem("dpm-lang", l);
-  applyLabels();
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.activeElement === document.getElementById("searchInput")) { clearSearch(); } });
+applyLabels();
   renderList(); if (plugins.length) selectPlugin(plugins[0].id);
 }
 function emojiFor(id) {
@@ -93,7 +97,14 @@ async function api(path, opts) {
 
 let currentProfile = null, plugins = [], updates = {}, dshRunning = false;
 
-function toast(msg) { const el = document.getElementById("toast"); el.textContent = msg; el.style.display = "block"; clearTimeout(el._t); el._t = setTimeout(() => (el.style.display = "none"), 2200); }
+function toast(msg, type) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = "toast" + (type ? " t-" + type : "");
+  el.style.display = "block";
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = "none"; el.className = "toast"; }, 2600);
+}
 
 // Custom confirmation dialog (matches app style; no native browser confirm()).
 function uiConfirm(message, { danger = false, okText = "确定", cancelText = "取消" } = {}) {
@@ -141,7 +152,7 @@ async function loadProfiles() {
   } catch (e) {
     document.getElementById("list").innerHTML = '<div class="empty">—</div>';
     document.getElementById("detail").innerHTML = '<div class="empty">加载失败</div>';
-    toast("加载失败: " + e.message);
+    toast("加载失败: " + e.message, "err");
   }
 }
 function renderRail() {
@@ -163,13 +174,22 @@ async function loadPlugins() {
     plugins = [];
     listEl.innerHTML = '<div class="empty">—</div>';
     detailEl.innerHTML = '<div class="empty">' + (e.message || "加载失败") + "</div>";
-    toast("加载插件失败: " + (e.message || ""));
+    toast("加载插件失败: " + (e.message || ""), "err");
   }
+}
+function clearSearch() {
+  const inp = document.getElementById("searchInput");
+  inp.value = "";
+  renderList();
+  inp.focus();
 }
 function renderList() {
   const list = document.getElementById("list");
   list.innerHTML = "";
-  const q = (document.getElementById("searchInput").value || "").toLowerCase();
+  const inp = document.getElementById("searchInput");
+  const q = (inp.value || "").toLowerCase();
+  const clearBtn = document.getElementById("searchClear");
+  if (clearBtn) clearBtn.style.display = q ? "block" : "none";
   const filtered = q ? plugins.filter((p) => (p.id + " " + (p.name || "") + " " + (p.description || "")).toLowerCase().includes(q)) : plugins;
   for (const p of filtered) {
     const row = document.createElement("div");
@@ -230,12 +250,12 @@ function selectPlugin(id) {
 }
 async function togglePlugin(id, disabled) {
   await api("/api/toggle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id, disabled }) });
-  toast((disabled ? "禁用 " : "启用 ") + id); await loadPlugins();
+  toast((disabled ? "禁用 " : "启用 ") + id, disabled ? "ok" : "ok"); await loadPlugins();
 }
 async function saveConfig(id) {
-  let value; try { value = document.getElementById("configEditor").value.trim() ? JSON.parse(document.getElementById("configEditor").value) : null; } catch { return toast("config 非 JSON"); }
+  let value; try { value = document.getElementById("configEditor").value.trim() ? JSON.parse(document.getElementById("configEditor").value) : null; } catch { return toast("config 非 JSON", "err"); }
   await api("/api/config", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id, config: value }) });
-  toast(t("saveConfig") + " ✓"); await loadPlugins();
+  toast(t("saveConfig") + " ✓", "ok"); await loadPlugins();
 }
 async function removeBundle(name) {
   const ok = await uiConfirm("从 bundles 移除 " + name + "?", { danger: true, okText: t("removeBundle") });
@@ -244,6 +264,58 @@ async function removeBundle(name) {
   await loadPlugins();
 }
 async function openRepo(name) { const r = await api("/api/open-repo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name }) }); if (!r.ok) toast(r.error || "no repo"); }
+
+// Minimal safe README renderer: headings, bold, inline code, fenced code, lists, links, hr.
+function renderReadme(text) {
+  const nodes = [];
+  const lines = text.split(String.fromCharCode(10));
+  let i = 0;
+  let list = null;
+  const flushList = () => { if (list) { nodes.push(list); list = null; } };
+  const inline = (t) => {
+    let out = t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+    out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, tx, url) => {
+      const safe = /^https?:\/\//.test(url) ? url : '#';
+      return '<a href="' + safe + '" target="_blank" rel="noopener">' + tx + '</a>';
+    });
+    return out;
+  };
+  while (i < lines.length) {
+    const ln = lines[i];
+    if (ln.indexOf(String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96)) === 0) {
+      flushList();
+      const buf = [];
+      i++;
+      while (i < lines.length && lines[i].indexOf(String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96)) !== 0) { buf.push(lines[i]); i++; }
+      const pre = document.createElement('pre'); pre.className = 'md-code'; pre.textContent = buf.join(String.fromCharCode(10));
+      nodes.push(pre);
+    } else if (/^#{1,4}\s/.test(ln)) {
+      flushList();
+      const level = ln.match(/^#+/)[0].length;
+      const h = document.createElement(level <= 2 ? 'h3' : 'h4');
+      h.className = 'md-h' + level;
+      h.innerHTML = inline(ln.replace(/^#+\s*/, ''));
+      nodes.push(h);
+    } else if (/^[-*]\s/.test(ln)) {
+      if (!list) { list = document.createElement('ul'); list.className = 'md-ul'; }
+      const li = document.createElement('li'); li.innerHTML = inline(ln.replace(/^[-*]\s*/, ''));
+      list.appendChild(li);
+    } else if (/^\s*$/.test(ln)) {
+      flushList();
+    } else if (/^---+$/.test(ln.trim())) {
+      flushList();
+      const hr = document.createElement('hr'); hr.className = 'md-hr'; nodes.push(hr);
+    } else {
+      flushList();
+      const p = document.createElement('p'); p.className = 'md-p'; p.innerHTML = inline(ln);
+      nodes.push(p);
+    }
+    i++;
+  }
+  flushList();
+  return { nodes };
+}
+
 async function showReadme(p) {
   const r = await api("/api/readme?profile=" + encodeURIComponent(currentProfile) + "&name=" + encodeURIComponent(p.name));
   const mask = document.createElement("div"); mask.className = "modal-mask";
@@ -253,8 +325,14 @@ async function showReadme(p) {
   const close = document.createElement("button"); close.className = "btn"; close.textContent = "✕";
   close.onclick = () => mask.remove();
   head.append(title, close);
-  const body = document.createElement("pre"); body.className = "readme";
-  body.textContent = r.ok ? r.readme : ("（" + (r.error || "no README") + "）");
+  const body = document.createElement("div"); body.className = "readme";
+  if (r.ok) {
+    const md = renderReadme(r.readme);
+    body.append(...md.nodes);
+  } else {
+    const empty = document.createElement("div"); empty.className = "empty"; empty.textContent = r.error || "no README";
+    body.appendChild(empty);
+  }
   if (r.truncated) { const tip = document.createElement("div"); tip.className = "sub"; tip.textContent = "…（截断）"; modal.append(tip); }
   modal.append(head, body);
   mask.append(modal);
@@ -313,7 +391,7 @@ async function checkUpdates() {
     const list = await api("/api/updates?profile=" + encodeURIComponent(currentProfile));
     updates = {}; for (const u of list) if (u.hasUpdate) updates[u.id] = u;
     renderList(); toast(Object.keys(updates).length ? Object.keys(updates).length + " 个有更新" : "全部最新");
-  } catch (e) { toast("检查失败: " + (e.message || "")); }
+  } catch (e) { toast("检查失败: " + (e.message || ""), "err"); }
 }
 async function refreshDshStatus() {
   try {
@@ -329,7 +407,7 @@ async function stopDsh() {
   const ok = await uiConfirm(t("stopConfirm"), { danger: true, okText: t("stopDsh") });
   if (!ok) return;
   const r = await api("/api/dsh-stop", { method: "POST" });
-  toast(r.ok ? t("stopDsh") + " ✓" : t("startFailed"));
+  toast(r.ok ? t("stopDsh") + " ✓" : t("startFailed"), r.ok ? "ok" : "err");
   setTimeout(refreshDshStatus, 1500);
 }
 async function togglePure() {
@@ -342,7 +420,7 @@ async function togglePure() {
   btn.dataset.purged = purge ? "1" : "0";
   btn.classList.toggle("pure-active", purge);
   try { localStorage.setItem("dpm-pure-" + currentProfile, purge ? "1" : "0"); } catch {}
-  toast((purge ? "纯净模式：" : "已恢复：") + r.affected + " 个插件" + (purge ? " 已禁用" : " 已启用"));
+  toast((purge ? "纯净模式：" : "已恢复：") + r.affected + " 个插件" + (purge ? " 已禁用" : " 已启用"), "ok");
   await loadPlugins();
 }
 async function startDsh() {
@@ -352,7 +430,7 @@ async function startDsh() {
   if (btn) { btn.disabled = true; btn.textContent = emojiFor("startBtn") + t("loading"); }
   try {
     const r = await api("/api/dsh-start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, port: port && port > 0 ? port : null }) });
-    toast(r.ok ? "dsh web ✓（" + currentProfile + "，端口 " + (port || 3080) + "）" : t("startFailed"));
+    toast(r.ok ? "dsh web ✓（" + currentProfile + "，端口 " + (port || 3080) + "）" : t("startFailed"), r.ok ? "ok" : "err");
     setTimeout(refreshDshStatus, 2000);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = emojiFor("startBtn") + t("startDsh"); }
