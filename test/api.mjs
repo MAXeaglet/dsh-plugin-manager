@@ -68,6 +68,8 @@ assert.strictEqual(cfg.name, "@deepseek-ai/dsh-tool-web", "name intact after con
 setPluginDisabled("web", "dsh-vision-toolkit", true);
 const vtPatch = readFileSync(join(prof, "cordis.patch.yml"), "utf8");
 assert.ok(vtPatch.includes("id: vision-toolkit") && vtPatch.includes("disabled: true"), "bundle disabled via real insert id");
+assert.ok(vtPatch.includes("name: @dsh-external/dsh-vision-toolkit") || vtPatch.includes("name: '@dsh-external/dsh-vision-toolkit'") || vtPatch.includes('name: "@dsh-external/dsh-vision-toolkit"'), "canonical bundle name written (DSH validates name)");
+assert.ok(!vtPatch.includes("id: dsh-vision-toolkit"), "no duplicate wrong-id row");
 const vtPlugins = listPlugins("web");
 const vtBundle = vtPlugins.find((p) => p.id === "dsh-vision-toolkit");
 assert.strictEqual(vtBundle.disabled, true, "bundle shown disabled");

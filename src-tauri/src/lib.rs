@@ -98,7 +98,7 @@ fn bundle_package(profile: &str, name: &str) -> Option<Json> {
     None
 }
 
-fn bundle_insert_ids(profile: &str, name: &str) -> Vec<String> {
+fn bundle_insert_ids(profile: &str, name: &str) -> Vec<(String, String)> {
     let candidates = [
         profile_dir(profile).join("node_modules").join(name).join("cordis.patch.yml"),
         profiles_dir().join("node_modules").join(name).join("cordis.patch.yml"),
@@ -107,17 +107,18 @@ fn bundle_insert_ids(profile: &str, name: &str) -> Vec<String> {
         if let Ok(s) = fs::read_to_string(&c) {
             if let Ok(v) = serde_yaml::from_str::<serde_yaml::Value>(&s) {
                 if let Some(seq) = v.as_sequence() {
-                    let mut ids = Vec::new();
+                    let mut rows = Vec::new();
                     for entry in seq {
                         if let Some(ins) = entry.get("insert").and_then(|x| x.as_sequence()) {
                             for item in ins {
                                 if let Some(id) = item.get("id").and_then(|x| x.as_str()) {
-                                    ids.push(id.to_string());
+                                    let nm = item.get("name").and_then(|x| x.as_str()).unwrap_or(id).to_string();
+                                    rows.push((id.to_string(), nm));
                                 }
                             }
                         }
                     }
-                    if !ids.is_empty() { return ids; }
+                    if !rows.is_empty() { return rows; }
                 }
             }
         }
@@ -132,14 +133,14 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
 
     // real insert ids per bundle (short id -> set), for folding patch rows into bundles
     let bundles = bundles_of(&profile);
-    let mut bundle_inserts: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut bundle_inserts: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
     let mut all_insert_ids: HashSet<String> = HashSet::new();
     for name in &bundles {
-        let ids = bundle_insert_ids(&profile, name);
-        if !ids.is_empty() {
+        let rows = bundle_insert_ids(&profile, name);
+        if !rows.is_empty() {
             let short = name.rsplit('/').next().unwrap_or(name).to_string();
-            bundle_inserts.insert(short, ids.clone());
-            all_insert_ids.extend(ids);
+            bundle_inserts.insert(short, rows.clone());
+            for (rid, _) in &rows { all_insert_ids.insert(rid.clone()); }
         }
     }
     // disabled/config carried by patch rows that belong to a bundle
@@ -180,13 +181,13 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
         let id = name.rsplit('/').next().unwrap_or(&name).to_string();
         let pkg = bundle_package(&profile, &name);
         let dsh = pkg.as_ref().and_then(|p| p.get("dsh"));
-        let insert_ids = bundle_inserts.get(&id).cloned().unwrap_or_default();
-        let disabled = if !insert_ids.is_empty() {
-            insert_ids.iter().all(|rid| row_disabled.get(rid).copied().unwrap_or(false))
+        let insert_rows = bundle_inserts.get(&id).cloned().unwrap_or_default();
+        let disabled = if !insert_rows.is_empty() {
+            insert_rows.iter().all(|(rid, _)| row_disabled.get(rid).copied().unwrap_or(false))
         } else {
             by_id.get(&id).map(|e| e.disabled).unwrap_or(false)
         };
-        let config = insert_ids.iter().find_map(|rid| row_config.get(rid).cloned())
+        let config = insert_rows.iter().find_map(|(rid, _)| row_config.get(rid).cloned())
             .or_else(|| by_id.get(&id).and_then(|e| e.config.clone()));
         let info = PluginInfo {
             id: id.clone(),
@@ -201,7 +202,7 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
             has_client: dsh.and_then(|d| d.get("client")).map(|_| true),
             author: pkg.as_ref().and_then(|p| p.get("author").and_then(|v| v.as_str()).map(|s| s.to_string())),
             license: pkg.as_ref().and_then(|p| p.get("license").and_then(|v| v.as_str()).map(|s| s.to_string())),
-            insert_ids: if insert_ids.is_empty() { None } else { Some(insert_ids) },
+            insert_ids: if insert_rows.is_empty() { None } else { Some(insert_rows.iter().map(|(r, _)| r.clone()).collect()) },
         };
         by_id.insert(id, info);
     }
@@ -229,12 +230,15 @@ fn serde_yaml_to_json(v: serde_yaml::Value) -> Json {
     }
 }
 
-fn patch_row_set_disabled(doc: &mut serde_yaml::Value, id: &str, disabled: bool) {
+fn patch_row_set_disabled(doc: &mut serde_yaml::Value, id: &str, name: &str, disabled: bool) {
     let seq = doc.as_sequence_mut().unwrap();
     let mut found = false;
     for entry in seq.iter_mut() {
         if entry.get("id").and_then(|v| v.as_str()) == Some(id) {
             let map = entry.as_mapping_mut().unwrap();
+            if name != id {
+                map.insert(serde_yaml::Value::String("name".into()), serde_yaml::Value::String(name.into()));
+            }
             if disabled {
                 map.insert(serde_yaml::Value::String("disabled".into()), serde_yaml::Value::Bool(true));
             } else {
@@ -247,7 +251,7 @@ fn patch_row_set_disabled(doc: &mut serde_yaml::Value, id: &str, disabled: bool)
     if !found {
         let mut map = serde_yaml::Mapping::new();
         map.insert(serde_yaml::Value::String("id".into()), serde_yaml::Value::String(id.into()));
-        map.insert(serde_yaml::Value::String("name".into()), serde_yaml::Value::String(id.into()));
+        map.insert(serde_yaml::Value::String("name".into()), serde_yaml::Value::String(name.into()));
         if disabled {
             map.insert(serde_yaml::Value::String("disabled".into()), serde_yaml::Value::Bool(true));
         }
@@ -269,17 +273,17 @@ fn set_plugin_disabled(profile: String, id: String, disabled: bool) -> Result<Js
     if doc.as_sequence().is_none() {
         doc = serde_yaml::Value::Sequence(vec![]);
     }
-    // bundle id (package short name): expand to the package's real inserted ids
+    // bundle id (package short name): expand to the package's real inserted rows (id + canonical name)
     let full = bundles_of(&profile).into_iter().find(|b| b.rsplit('/').next().unwrap_or(b) == id);
-    let ids: Vec<String> = match full {
+    let rows: Vec<(String, String)> = match full {
         Some(f) => {
             let r = bundle_insert_ids(&profile, &f);
-            if r.is_empty() { vec![id.clone()] } else { r }
+            if r.is_empty() { vec![(id.clone(), id.clone())] } else { r }
         }
-        None => vec![id.clone()],
+        None => vec![(id.clone(), id.clone())],
     };
-    for rid in &ids {
-        patch_row_set_disabled(&mut doc, rid, disabled);
+    for (rid, rname) in &rows {
+        patch_row_set_disabled(&mut doc, rid, rname, disabled);
     }
     atomic_write(&path, &serde_yaml::to_string(&doc).map_err(|e| e.to_string())?)?;
     Ok(serde_json::json!({ "id": id, "disabled": disabled }))
