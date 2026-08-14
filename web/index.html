@@ -83,6 +83,7 @@ async function api(path, opts) {
       case "/api/import": return await invoke("import_profile", body);
       case "/api/open-repo": return await invoke("open_plugin_repo", body);
       case "/api/open-dshbase": return await invoke("open_dshbase");
+      case "/api/update-plugin": return await invoke("update_plugin", body);
       case "/api/updates": return await invoke("check_updates", { profile: qs.get("profile") });
       case "/api/purge": return await invoke("purge_third_party", body);
       case "/api/readme": return await invoke("read_plugin_readme", { profile: qs.get("profile"), name: qs.get("name") });
@@ -248,7 +249,9 @@ function selectPlugin(id) {
   acts.append(rd);
   if (p.kind === "bundle") {
     const gh = document.createElement("button"); gh.className = "btn"; gh.textContent = "GitHub"; gh.onclick = () => openRepo(p.name);
+    const upd = updates[p.id] ? (() => { const b = document.createElement("button"); b.className = "btn"; b.textContent = "⬆ 更新到 " + updates[p.id].latest; b.onclick = () => updatePlugin(p.name); return b; })() : null;
     const rm = document.createElement("button"); rm.className = "btn danger"; rm.textContent = t("removeBundle"); rm.onclick = () => removeBundle(p.name);
+    if (upd) acts.append(upd);
     acts.append(gh, rm);
   }
   d.appendChild(acts);
@@ -413,8 +416,20 @@ async function checkUpdates() {
   try {
     const list = await api("/api/updates?profile=" + encodeURIComponent(currentProfile));
     updates = {}; for (const u of list) if (u.hasUpdate) updates[u.id] = u;
-    renderList(); toast(Object.keys(updates).length ? Object.keys(updates).length + " 个有更新" : "全部最新");
+    renderList();
+    const n = Object.keys(updates).length;
+    toast(n ? n + " 个插件有更新（详情面板可逐个更新）" : "全部最新", n ? "" : "ok");
   } catch (e) { toast("检查失败: " + (e.message || ""), "err"); }
+}
+async function updatePlugin(name) {
+  const ok = await uiConfirm("更新 " + name + "?", { okText: "更新" });
+  if (!ok) return;
+  toast("更新中…");
+  try {
+    const r = await api("/api/update-plugin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name }) });
+    toast(r.ok ? "已更新 " + name : "更新失败: " + (r.error || r.output || "").slice(0, 120), r.ok ? "ok" : "err");
+    await checkUpdates(); await loadPlugins();
+  } catch (e) { toast("更新失败: " + (e.message || ""), "err"); }
 }
 async function refreshDshStatus() {
   try {

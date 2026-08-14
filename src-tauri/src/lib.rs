@@ -587,6 +587,30 @@ fn open_dshbase(app: tauri::AppHandle) -> Json {
     }
 }
 
+// lightweight semver compare: returns true if a is a newer version than b.
+fn version_newer(a: &str, b: &str) -> bool {
+    fn parse(v: &str) -> (Vec<u64>, String) {
+        let (core, pre) = match v.split_once('-') {
+            Some((c, p)) => (c, p.to_string()),
+            None => (v, String::new()),
+        };
+        let mut nums: Vec<u64> = core.split('.').map(|n| n.parse().unwrap_or(0)).collect();
+        while nums.len() < 3 { nums.push(0); }
+        (nums, pre)
+    }
+    let (na, prea) = parse(a);
+    let (nb, preb) = parse(b);
+    for i in 0..3 {
+        if na[i] != nb[i] { return na[i] > nb[i]; }
+    }
+    match (prea.is_empty(), preb.is_empty()) {
+        (true, true) => false,
+        (true, false) => true,   // release > prerelease
+        (false, true) => false,
+        (false, false) => prea > preb,
+    }
+}
+
 fn npm_latest(name: &str) -> Option<String> {
     let out = Command::new("npm").args(["view", name, "version"]).output().ok()?;
     if out.status.success() {
@@ -613,7 +637,7 @@ fn check_updates(profile: String) -> Json {
     }
     for h in handles {
         if let Ok((name, local, latest)) = h.join() {
-            let has = latest.as_ref().is_some() && latest.as_ref() != Some(&local);
+            let has = latest.as_ref().is_some_and(|l| version_newer(l, &local));
             out.push(serde_json::json!({
                 "id": name.split('/').next_back().unwrap_or(&name),
                 "name": name, "local": local,
@@ -623,6 +647,17 @@ fn check_updates(profile: String) -> Json {
     }
     serde_json::json!(out)
 }
+#[tauri::command]
+fn update_plugin(profile: String, name: String) -> Json {
+    let output = Command::new("dsh")
+        .args(["plugin", "--profile", &profile, "update", &name])
+        .output();
+    match output {
+        Ok(o) => serde_json::json!({ "ok": o.status.success(), "status": o.status.code(), "output": String::from_utf8_lossy(&o.stdout).into_owned() + &String::from_utf8_lossy(&o.stderr) }),
+        Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),
+    }
+}
+
 fn bundle_dir(profile: &str, name: &str) -> Option<PathBuf> {
     let candidates = [
         profile_dir(profile).join("node_modules").join(name),
@@ -777,7 +812,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_profiles, list_plugins, set_plugin_disabled, set_bundle, set_bundle_order, export_profile, install_plugin,
             dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config, search_npm, import_profile, open_plugin_repo, check_updates, purge_third_party,
-            read_plugin_readme, read_profile_files, write_profile_files, open_dshbase
+            read_plugin_readme, read_profile_files, write_profile_files, open_dshbase, update_plugin
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
