@@ -71,6 +71,7 @@ async function api(path, opts) {
       case "/api/purge": return await invoke("purge_third_party", body);
       case "/api/readme": return await invoke("read_plugin_readme", { profile: qs.get("profile"), name: qs.get("name") });
       case "/api/profile-files": return await invoke("read_profile_files", { profile: qs.get("profile") });
+      case "/api/profile-files-save": return await invoke("write_profile_files", body);
     }
     throw new Error("unknown api " + name);
   }
@@ -218,13 +219,28 @@ async function showProfileFiles() {
   close.onclick = () => mask.remove();
   head.append(title, close);
   modal.append(head);
-  const mk = (label, text) => {
+  const mj = document.createElement("textarea"); mj.className = "file-editor"; mj.spellcheck = false; mj.value = r.manifest || "";
+  const pc = document.createElement("textarea"); pc.className = "file-editor"; pc.spellcheck = false; pc.value = r.patch || "";
+  const mk = (label, ta) => {
     const lab = document.createElement("div"); lab.className = "sub"; lab.textContent = label;
-    const pre = document.createElement("pre"); pre.className = "readme"; pre.textContent = text || "—";
-    modal.append(lab, pre);
+    modal.append(lab, ta);
   };
-  mk("package.json", r.manifest);
-  mk("cordis.patch.yml", r.patch);
+  mk("package.json", mj);
+  mk("cordis.patch.yml", pc);
+  const foot = document.createElement("div"); foot.className = "mh"; foot.style.borderTop = "1px solid var(--line)";
+  const tip = document.createElement("span"); tip.style.cssText = "color:var(--muted);font-size:11px;flex:1"; tip.textContent = "保存前自动备份 .bak · 请保持 JSON / YAML 语法正确";
+  const save = document.createElement("button"); save.className = "btn primary"; save.textContent = "💾 保存";
+  save.onclick = async () => {
+    let manifest, patch;
+    try { manifest = mj.value.trim() ? JSON.stringify(JSON.parse(mj.value), null, 2) + "
+" : ""; } catch { return toast("package.json 不是合法 JSON"); }
+    patch = pc.value;
+    const res = await api("/api/profile-files-save", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, manifest: manifest || null, patch }) });
+    if (res.ok) { toast("已保存 ✓（备份在 profile 目录）"); mask.remove(); await loadPlugins(); }
+    else toast(res.error || "保存失败");
+  };
+  foot.append(tip, save);
+  modal.append(foot);
   mask.append(modal);
   mask.onclick = (e) => { if (e.target === mask) mask.remove(); };
   document.body.appendChild(mask);

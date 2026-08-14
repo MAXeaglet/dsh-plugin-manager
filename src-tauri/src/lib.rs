@@ -520,6 +520,24 @@ fn read_plugin_readme(profile: String, name: String) -> Json {
 }
 
 #[tauri::command]
+fn write_profile_files(profile: String, manifest: Option<String>, patch: Option<String>) -> Result<Json, String> {
+    let dir = profile_dir(&profile);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let mut saved = Vec::new();
+    if let Some(m) = manifest {
+        let p = dir.join("package.json");
+        atomic_write(&p, &m)?;
+        saved.push("package.json");
+    }
+    if let Some(patch) = patch {
+        let p = dir.join("cordis.patch.yml");
+        atomic_write(&p, &patch)?;
+        saved.push("cordis.patch.yml");
+    }
+    Ok(serde_json::json!({ "ok": true, "saved": saved }))
+}
+
+#[tauri::command]
 fn read_profile_files(profile: String) -> Json {
     let dir = profile_dir(&profile);
     let manifest = fs::read_to_string(dir.join("package.json")).unwrap_or_default();
@@ -626,7 +644,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_profiles, list_plugins, set_plugin_disabled, set_bundle, set_bundle_order, export_profile, install_plugin,
             dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config, search_npm, import_profile, open_plugin_repo, check_updates, purge_third_party,
-            read_plugin_readme, read_profile_files
+            read_plugin_readme, read_profile_files, write_profile_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

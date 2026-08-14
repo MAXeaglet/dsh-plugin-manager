@@ -92,3 +92,6 @@ header .spacer { flex: 1; }
 .modal.wide { width: 760px; max-width: 92vw; }
 .modal .readme { flex: 1; overflow-y: auto; margin: 0; padding: 14px 16px; font-family: var(--mono); font-size: 12px; line-height: 1.65; color: var(--text); white-space: pre-wrap; word-break: break-word; }
 .modal .sub { padding: 10px 16px 0; color: var(--muted); font-size: 11.5px; }
+
+.modal .file-editor { flex: 1; min-height: 110px; margin: 0 16px; padding: 10px 12px; background: var(--panel2, transparent); border: 1px solid var(--line); border-radius: 8px; color: var(--text); font-family: var(--mono); font-size: 12px; line-height: 1.6; resize: vertical; outline: none; }
+.modal .file-editor:focus { border-color: var(--line2); }
