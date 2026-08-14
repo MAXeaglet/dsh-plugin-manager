@@ -472,6 +472,81 @@ fn check_updates(profile: String) -> Json {
     serde_json::json!(out)
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    static LOCK: Mutex<()> = Mutex::new(());
+
+    fn setup() -> (PathBuf, std::sync::MutexGuard<'static, ()>) {
+        let _guard = LOCK.lock().unwrap();
+        let tmp = std::env::temp_dir().join(format!("dpm-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        let prof = tmp.join("profiles/web");
+        fs::create_dir_all(prof.join("node_modules/@deepseek-ai/dsh-base")).unwrap();
+        fs::write(prof.join("node_modules/@deepseek-ai/dsh-base/package.json"), r#"{"name":"@deepseek-ai/dsh-base","version":"0.1.0","description":"test base"}"#).unwrap();
+        fs::write(prof.join("package.json"), r#"{"name":"dsh-profile-web","dsh":{"profile":{"bundles":["@deepseek-ai/dsh-base"]}}}"#).unwrap();
+        fs::write(prof.join("cordis.patch.yml"), "- id: tool-web\n  name: '@deepseek-ai/dsh-tool-web'\n").unwrap();
+        std::env::set_var("DSH_HOME", &tmp);
+        (tmp, _guard)
+    }
+
+    #[test]
+    fn lists_bundles_and_patch_rows() {
+        let (tmp, _g) = setup();
+        let plugins = list_plugins("web".to_string());
+        let ids: Vec<&str> = plugins.iter().map(|p| p.id.as_str()).collect();
+        assert!(ids.contains(&"tool-web"), "patch row listed: {:?}", ids);
+        assert!(ids.contains(&"dsh-base"), "bundle listed: {:?}", ids);
+        let base = plugins.iter().find(|p| p.id == "dsh-base").unwrap();
+        assert_eq!(base.version.as_deref(), Some("0.1.0"));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn toggles_disabled_flag_roundtrip() {
+        let (tmp, _g) = setup();
+        set_plugin_disabled("web".into(), "tool-web".into(), true).unwrap();
+        let disabled = list_plugins("web".to_string()).iter().find(|p| p.id == "tool-web").unwrap().disabled;
+        assert!(disabled);
+        set_plugin_disabled("web".into(), "tool-web".into(), false).unwrap();
+        let reenabled = list_plugins("web".to_string()).iter().find(|p| p.id == "tool-web").unwrap().disabled;
+        assert!(!reenabled);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn adds_and_removes_bundle() {
+        let (tmp, _g) = setup();
+        set_bundle("web".into(), "@deepseek-ai/dsh-web-app".into(), true).unwrap();
+        assert!(bundles_of("web").contains(&"@deepseek-ai/dsh-web-app".to_string()));
+        set_bundle("web".into(), "@deepseek-ai/dsh-web-app".into(), false).unwrap();
+        assert!(!bundles_of("web").contains(&"@deepseek-ai/dsh-web-app".to_string()));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn reorders_bundles() {
+        let (tmp, _g) = setup();
+        set_bundle("web".into(), "@deepseek-ai/dsh-web-app".into(), true).unwrap();
+        let ordered = vec!["@deepseek-ai/dsh-web-app".to_string(), "@deepseek-ai/dsh-base".to_string()];
+        set_bundle_order("web".into(), ordered).unwrap();
+        assert_eq!(bundles_of("web"), vec!["@deepseek-ai/dsh-web-app".to_string(), "@deepseek-ai/dsh-base".to_string()]);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn backup_file_created_on_mutation() {
+        let (tmp, _g) = setup();
+        let prof = profile_dir("web");
+        set_plugin_disabled("web".into(), "tool-web".into(), true).unwrap();
+        let backups = fs::read_dir(&prof).unwrap().filter_map(|e| e.ok()).filter(|e| e.file_name().to_string_lossy().ends_with(".bak")).count();
+        assert!(backups >= 1, "backup created");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())

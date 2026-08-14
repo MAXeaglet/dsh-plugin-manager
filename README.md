@@ -70,5 +70,6 @@ node lib/cli.mjs         # http://127.0.0.1:5177 (fetch API mode)
 ## Test
 
 ```bash
-node test/api.mjs        # profiles logic against a throwaway profile (Node path)
+node test/api.mjs            # Node profiles logic (throwaway profile)
+cargo +stable-x86_64-pc-windows-msvc test   # Rust commands: list/toggle/bundle/reorder/backup
 ```
