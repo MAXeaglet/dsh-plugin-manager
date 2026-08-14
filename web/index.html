@@ -27,6 +27,7 @@
     <button class="btn" onclick="stopDsh()" id="stopBtn" title="停止 dsh web">⏹ 停止</button>
     <button class="btn" onclick="openSearch()" id="installBtn" title="打开 dshbase.com 插件市场">🔍 装插件</button>
     <button class="btn sm" onclick="checkUpdates()" title="检查更新" aria-label="check updates"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A5.5 5.5 0 1 1 2 10"/><path d="M2 3v3.5h3.5"/></svg></button>
+    <button class="btn sm" onclick="updateDsh()" title="更新 DSH 本体" aria-label="update dsh">DSH↑</button>
     <button class="btn sm" onclick="toggleTheme()" id="themeBtn" title="主题" aria-label="theme"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1"/></svg></button>
     <button class="btn sm" onclick="setLang(LANG==='zh'?'en':'zh')" id="langBtn">EN</button>
   </header>
@@ -84,6 +85,8 @@ async function api(path, opts) {
       case "/api/open-repo": return await invoke("open_plugin_repo", body);
       case "/api/open-dshbase": return await invoke("open_dshbase");
       case "/api/update-plugin": return await invoke("update_plugin", body);
+      case "/api/check-dsh": return await invoke("check_dsh_update");
+      case "/api/update-dsh": return await invoke("update_dsh");
       case "/api/updates": return await invoke("check_updates", { profile: qs.get("profile") });
       case "/api/purge": return await invoke("purge_third_party", body);
       case "/api/readme": return await invoke("read_plugin_readme", { profile: qs.get("profile"), name: qs.get("name") });
@@ -477,6 +480,18 @@ async function startDsh() {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = emojiFor("startBtn") + t("startDsh"); }
   }
+}
+async function updateDsh() {
+  try {
+    const info = await api("/api/check-dsh");
+    if (!info.hasUpdate) { toast("DSH 已是最新: " + (info.local || "?"), "ok"); return; }
+    const ok = await uiConfirm("更新 DSH 本体？\n" + (info.local || "?") + " → " + info.latest, { okText: "更新 DSH" });
+    if (!ok) return;
+    toast("更新中…（可能需 1-2 分钟）");
+    const r = await api("/api/update-dsh", { method: "POST" });
+    const after = await api("/api/check-dsh");
+    toast(r.ok ? "DSH 已更新到 " + (after.local || "?") : "更新失败: " + (r.error || r.output || "").slice(0, 150), r.ok ? "ok" : "err");
+  } catch (e) { toast("操作失败: " + (e.message || ""), "err"); }
 }
 function toggleTheme() { document.documentElement.classList.toggle("light"); }
 function openSearch() {

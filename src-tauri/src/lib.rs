@@ -620,6 +620,38 @@ fn npm_latest(name: &str) -> Option<String> {
     None
 }
 
+fn dsh_local_version() -> Option<String> {
+    let out = Command::new("dsh").args(["-V"]).output().ok()?;
+    if out.status.success() {
+        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if !s.is_empty() { return Some(s); }
+    }
+    None
+}
+
+#[tauri::command]
+fn check_dsh_update() -> Json {
+    let local = dsh_local_version();
+    let latest = npm_latest("@deepseek-ai/dsh");
+    let has_update = match (&local, &latest) {
+        (Some(l), Some(n)) => version_newer(n, l),
+        (None, Some(_)) => true,
+        _ => false,
+    };
+    serde_json::json!({ "local": local, "latest": latest, "hasUpdate": has_update })
+}
+
+#[tauri::command]
+fn update_dsh() -> Json {
+    let output = Command::new("npm")
+        .args(["i", "-g", "@deepseek-ai/dsh"])
+        .output();
+    match output {
+        Ok(o) => serde_json::json!({ "ok": o.status.success(), "status": o.status.code(), "output": String::from_utf8_lossy(&o.stdout).into_owned() + &String::from_utf8_lossy(&o.stderr) }),
+        Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),
+    }
+}
+
 #[tauri::command]
 fn check_updates(profile: String) -> Json {
     let mut out = Vec::new();
@@ -812,7 +844,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_profiles, list_plugins, set_plugin_disabled, set_bundle, set_bundle_order, export_profile, install_plugin,
             dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config, search_npm, import_profile, open_plugin_repo, check_updates, purge_third_party,
-            read_plugin_readme, read_profile_files, write_profile_files, open_dshbase, update_plugin
+            read_plugin_readme, read_profile_files, write_profile_files, open_dshbase, update_plugin, check_dsh_update, update_dsh
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
