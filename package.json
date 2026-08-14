@@ -1,5 +1,5 @@
 {
-  "name": "dsh-plugin-manager",
+  "name": "@maxeagle/dsh-plugin-manager",
   "version": "0.2.0",
   "description": "Desktop GUI + CLI to manage DSH plugins across profiles (Tauri 2, cc-switch/DSH style)",
   "type": "module",

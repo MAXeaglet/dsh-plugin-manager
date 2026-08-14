@@ -2,6 +2,13 @@
 
 > 社区交流：[LINUX DO](https://linux.do) · [GitHub](https://github.com/MAXeaglet/dsh-plugin-manager)
 
+Install via npm (CLI + WebUI fallback):
+
+```bash
+npm i -g @maxeagle/dsh-plugin-manager
+dsh-plugin-manager --help
+```
+
 A **desktop GUI** to manage DSH plugins across profiles — inspired by
 [cc-switch](https://github.com/farion1231/cc-switch). Built with
 **Tauri 2** (Rust backend + web frontend), exactly like cc-switch.

@@ -281,35 +281,46 @@ fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn dsh_running() -> bool {
+fn dsh_running(port: u16) -> bool {
     #[cfg(target_os = "windows")]
     {
-        let out = Command::new("powershell")
-            .args(["-NoProfile", "-Command", "Get-NetTCPConnection -LocalPort 3080 -State Listen -ErrorAction SilentlyContinue"])
-            .output();
+        let ps = format!("Get-NetTCPConnection -LocalPort {} -State Listen -ErrorAction SilentlyContinue", port);
+        let out = Command::new("powershell").args(["-NoProfile", "-Command", &ps]).output();
         match out { Ok(o) => o.status.success() && !o.stdout.is_empty(), Err(_) => false }
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let out = Command::new("sh").args(["-c", "lsof -iTCP:3080 -sTCP:LISTEN >/dev/null 2>&1"]).output();
+        let sh = format!("lsof -iTCP:{} -sTCP:LISTEN >/dev/null 2>&1", port);
+        let out = Command::new("sh").args(["-c", &sh]).output();
         match out { Ok(o) => o.status.success(), Err(_) => false }
     }
 }
 
 #[tauri::command]
-fn dsh_status() -> Json {
-    serde_json::json!({ "running": dsh_running(), "port": 3080 })
+fn dsh_status(port: Option<u16>) -> Json {
+    let p = port.unwrap_or(3080);
+    serde_json::json!({ "running": dsh_running(p), "port": p })
 }
 
 #[tauri::command]
-fn start_dsh(profile: String) -> Json {
+fn start_dsh(profile: String, port: Option<u16>) -> Json {
     // "dsh web" is correct (= dsh --profile web); putting --profile after web
     // fails because it is not a web option. Boot web (the default UI).
     let _ = profile;
+    let mut cmd: Vec<String> = vec!["web".into()];
+    if let Some(p) = port {
+        cmd.push("--port".into());
+        cmd.push(p.to_string());
+    }
     #[cfg(target_os = "windows")]
-    let result = Command::new("cmd").args(["/c", "start", "", "dsh", "web"]).spawn();
+    let result = Command::new("cmd")
+        .arg("/c").arg("start").arg("").arg("dsh")
+        .args(&cmd)
+        .spawn();
     #[cfg(not(target_os = "windows"))]
-    let result = Command::new("sh").args(["-c", "nohup dsh web >/dev/null 2>&1 &"]).spawn();
+    let result = Command::new("sh")
+        .args(["-c", &format!("nohup dsh {} >/dev/null 2>&1 &", cmd.join(" "))])
+        .spawn();
     match result {
         Ok(_) => serde_json::json!({ "ok": true }),
         Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),

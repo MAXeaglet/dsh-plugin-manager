@@ -19,6 +19,7 @@
     <span style="color:var(--dim);font-family:var(--mono);font-size:11.5px" id="profileLabel"></span>
     <div class="spacer"></div>
     <button class="btn" onclick="togglePure()" id="pureBtn" title="纯净模式：禁用所有第三方插件">🧹 纯净模式</button>
+    <input id="dshPort" type="number" min="1" max="65535" value="3080" title="dsh web 端口" style="width:64px;background:var(--bg-2,transparent);border:1px solid var(--border-l1,currentColor);color:inherit;border-radius:18px;padding:5px 10px;font-family:var(--mono);font-size:12px;text-align:center">
     <button class="btn primary" onclick="startDsh()" title="启动 dsh web">▶ 启动 dsh</button>
     <button class="btn" onclick="stopDsh()" title="停止 dsh web">⏹ 停止</button>
     <button class="btn" onclick="openSearch()" title="搜索并安装插件">🔍 装插件</button>
@@ -200,7 +201,15 @@ async function checkUpdates() {
   updates = {}; for (const u of list) if (u.hasUpdate) updates[u.id] = u;
   renderList(); toast(Object.keys(updates).length ? Object.keys(updates).length + " 个有更新" : "全部最新");
 }
-async function refreshDshStatus() { try { const s = await api("/api/dsh-status"); dshRunning = s.running; renderRail(); } catch {} }
+async function refreshDshStatus() {
+  try {
+    const portEl = document.getElementById("dshPort");
+    const port = portEl ? parseInt(portEl.value, 10) : 3080;
+    const s = await api("/api/dsh-status?port=" + (port || 3080));
+    dshRunning = s.running;
+    renderRail();
+  } catch {}
+}
 async function stopDsh() {
   if (!confirm("停止 dsh web?")) return;
   const r = await api("/api/dsh-stop", { method: "POST" });
@@ -220,8 +229,10 @@ async function togglePure() {
   await loadPlugins();
 }
 async function startDsh() {
-  const r = await api("/api/dsh-start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile }) });
-  toast(r.ok ? "已启动 dsh web（" + currentProfile + "）" : "启动失败");
+  const portEl = document.getElementById("dshPort");
+  const port = portEl ? parseInt(portEl.value, 10) : 3080;
+  const r = await api("/api/dsh-start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, port: port && port > 0 ? port : null }) });
+  toast(r.ok ? "已启动 dsh web（" + currentProfile + "，端口 " + (port || 3080) + "）" : "启动失败");
   setTimeout(refreshDshStatus, 2000);
 }
 function toggleTheme() { document.documentElement.classList.toggle("light"); }
