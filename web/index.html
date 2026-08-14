@@ -48,27 +48,76 @@
 <body>
 <header>
   <h1>🧩 DSH Plugin Manager</h1>
-  <label>profile</label>
+  <label data-i18n="profile">profile</label>
   <select id="profile"></select>
-  <button onclick="loadProfiles()">刷新</button>
+  <button onclick="loadProfiles()" data-i18n="refresh">刷新</button>
   <span id="dshStatus" class="dot off" title="dsh web 状态"></span>
-  <button id="startBtn" onclick="startDsh()">启动 dsh</button>
-  <button id="stopBtn" onclick="stopDsh()">停止 dsh</button>
+  <button id="startBtn" onclick="startDsh()" data-i18n="start">启动 dsh</button>
+  <button id="stopBtn" onclick="stopDsh()" data-i18n="stop">停止 dsh</button>
   <div class="spacer"></div>
-  <input id="searchInput" placeholder="搜索…" style="width: 140px" oninput="renderList()">
-  <button onclick="openSearch()">🔍 搜插件</button>
-  <button onclick="exportProfile()">导出</button>
-  <button onclick="importProfile()">导入</button>
-  <button onclick="toggleTheme()" id="themeBtn">🌙</button>
-  <input id="installInput" placeholder="npm 包名…" style="width: 200px">
-  <button class="primary" onclick="installPlugin()">安装</button>
+  <input id="searchInput" data-i18n-ph="search" style="width: 140px" oninput="renderList()">
+  <button onclick="openSearch()" data-i18n="find">🔍 搜插件</button>
+  <button onclick="exportProfile()" data-i18n="export">导出</button>
+  <button onclick="importProfile()" data-i18n="import">导入</button>
+  <button onclick="toggleTheme()" id="themeBtn">🌙</button><button onclick="setLang(LANG==='zh'?'en':'zh')" id="langBtn">EN</button>
+  <input id="installInput" data-i18n-ph="pkgName" style="width: 200px">
+  <button class="primary" onclick="installPlugin()" data-i18n="install">安装</button>
 </header>
 <div class="main">
   <div class="list" id="list"></div>
-  <div class="detail" id="detail"><div class="empty">选择一个插件查看详情</div></div>
+  <div class="detail" id="detail"><div class="empty" id="emptyHint"></div></div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
+const I18N = {
+  zh: {
+    title: "🧩 DSH 插件管理器", profile: "profile", refresh: "刷新", start: "启动 dsh", stop: "停止 dsh",
+    search: "搜索…", find: "🔍 搜插件", export: "导出", import: "导入", install: "安装", theme: "🌙",
+    installing: "安装", searchPh: "npm 搜索 DSH 插件…", doSearch: "搜索", searching: "搜索中…",
+    none: "无结果", empty: "选择一个插件查看详情", noPlugins: "无插件", enabled: "已启用", disabled: "已禁用",
+    source: "来源", name: "名称", version: "版本", status: "状态", compat: "兼容", config: "config",
+    enable: "启用", disable: "禁用", removeBundle: "从 bundles 移除", saveConfig: "保存 config",
+    configPh: "插件 config（JSON，留空表示无）", installOk: "已安装", restartNote: "（重启 dsh 生效）",
+    installFail: "安装失败", importConfirm: "导入将覆盖 {p} 的 bundles/patch（会自动备份），继续？",
+    importOk: "已导入", importFail: "导入失败", saved: "已保存", saveFail: "保存失败",
+    startOk: "已启动 dsh web（{p}）", startFail: "启动失败", stopConfirm: "确定停止 dsh web？", stopOk: "已停止 dsh web",
+    stopFail: "停止失败", running: "dsh web 运行中", stopped: "dsh web 未运行",
+    pkgName: "npm 包名…", toastFail: "加载失败", invalidJson: "文件不是合法 JSON",
+    bundleSrc: "bundle（dsh.profile.bundles）", patchSrc: "patch（cordis.patch.yml）",
+    orderUpdated: "bundle 顺序已更新", orderFail: "排序失败", exportFail: "导出失败",
+  },
+  en: {
+    title: "🧩 DSH Plugin Manager", profile: "profile", refresh: "Refresh", start: "Start dsh", stop: "Stop dsh",
+    search: "Search…", find: "🔍 Find plugins", export: "Export", import: "Import", install: "Install", theme: "🌙",
+    installing: "Install", searchPh: "Search npm for DSH plugins…", doSearch: "Search", searching: "Searching…",
+    none: "No results", empty: "Select a plugin to view details", noPlugins: "No plugins", enabled: "enabled", disabled: "disabled",
+    source: "Source", name: "Name", version: "Version", status: "Status", compat: "Compat", config: "config",
+    enable: "Enable", disable: "Disable", removeBundle: "Remove from bundles", saveConfig: "Save config",
+    configPh: "Plugin config (JSON, empty = none)", installOk: "Installed", restartNote: " (restart dsh to apply)",
+    installFail: "Install failed", importConfirm: "Import will overwrite {p} bundles/patch (auto-backed up), continue?",
+    importOk: "Imported", importFail: "Import failed", saved: "Saved", saveFail: "Save failed",
+    startOk: "Started dsh web ({p})", startFail: "Start failed", stopConfirm: "Stop dsh web?", stopOk: "Stopped dsh web",
+    stopFail: "Stop failed", running: "dsh web running", stopped: "dsh web not running",
+    pkgName: "npm package…", toastFail: "Load failed", invalidJson: "Not valid JSON",
+    bundleSrc: "bundle (dsh.profile.bundles)", patchSrc: "patch (cordis.patch.yml)",
+    orderUpdated: "bundle order updated", orderFail: "Reorder failed", exportFail: "Export failed",
+  }
+};
+let LANG = localStorage.getItem("dpm-lang") || "zh";
+const t = (k, vars) => {
+  let s = (I18N[LANG] || I18N.zh)[k] ?? k;
+  if (vars) for (const [kk, v] of Object.entries(vars)) s = s.replace("{" + kk + "}", v);
+  return s;
+};
+function setLang(l) { LANG = l; localStorage.setItem("dpm-lang", l); applyI18n(); loadPlugins(); }
+function applyI18n() {
+  document.querySelectorAll("[data-i18n]").forEach((el) => (el.textContent = t(el.dataset.i18n)));
+  document.querySelectorAll("[data-i18n-ph]").forEach((el) => (el.placeholder = t(el.dataset.i18nPh)));
+  const eh = document.getElementById("emptyHint");
+  if (eh) eh.textContent = t("empty");
+  document.getElementById("langBtn").textContent = LANG === "zh" ? "EN" : "中文";
+  document.title = t("title");
+}
 let currentProfile = null;
 let plugins = [];
 
@@ -120,48 +169,48 @@ async function loadProfiles() {
     if (data.current) sel.value = data.current;
     currentProfile = sel.value;
     await loadPlugins();
-  } catch (e) { toast("加载失败: " + e.message); }
+  } catch (e) { toast(t("toastFail") + ": " + e.message); }
 }
 async function refreshDshStatus() {
   try {
     const s = await api("/api/dsh-status");
     const el = document.getElementById("dshStatus");
     el.className = "dot " + (s.running ? "on" : "off");
-    el.title = s.running ? "dsh web 运行中 (port " + s.port + ")" : "dsh web 未运行";
+    el.title = s.running ? t("running") + " (port " + s.port + ")" : t("stopped");
   } catch {}
 }
 async function startDsh() {
   try {
     const r = await api("/api/dsh-start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile }) });
-    toast(r.ok ? "已启动 dsh web（" + currentProfile + "）" : "启动失败: " + (r.error || ""));
+    toast(r.ok ? t("startOk", { p: currentProfile }) : t("startFail") + ": " + (r.error || ""));
     setTimeout(refreshDshStatus, 2000);
-  } catch (e) { toast("启动失败: " + e.message); }
+  } catch (e) { toast(t("startFail") + ": " + e.message); }
 }
 async function stopDsh() {
-  if (!confirm("确定停止 dsh web？")) return;
+  if (!confirm(t("stopConfirm"))) return;
   try {
     const r = await api("/api/dsh-stop", { method: "POST" });
-    toast(r.ok ? "已停止 dsh web" : "停止失败");
+    toast(r.ok ? t("stopOk") : t("stopFail"));
     setTimeout(refreshDshStatus, 1500);
-  } catch (e) { toast("停止失败: " + e.message); }
+  } catch (e) { toast(t("stopFail") + ": " + e.message); }
 }
 async function saveConfig(id) {
   const ta = document.getElementById("configEditor");
   let value;
   try { value = ta.value.trim() ? JSON.parse(ta.value) : null; }
-  catch { return toast("config 不是合法 JSON"); }
+  catch { return toast(t("invalidJson")); }
   try {
     await api("/api/config", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id, config: value }) });
-    toast("已保存 " + id + " 的 config");
+    toast(t("saved") + " " + id + " " + t("config"));
     await loadPlugins();
-  } catch (e) { toast("保存失败: " + e.message); }
+  } catch (e) { toast(t("saveFail") + ": " + e.message); }
 }
 async function loadPlugins() {
   currentProfile = document.getElementById("profile").value;
   const data = await api("/api/plugins?profile=" + encodeURIComponent(currentProfile));
   plugins = data.plugins;
   renderList();
-  if (plugins.length) selectPlugin(plugins[0].id); else document.getElementById("detail").innerHTML = '<div class="empty">无插件</div>';
+  if (plugins.length) selectPlugin(plugins[0].id); else document.getElementById("detail").innerHTML = '<div class="empty">' + t("noPlugins") + "</div>";
 }
 function renderList() {
   const list = document.getElementById("list");
@@ -185,7 +234,7 @@ function renderList() {
     const src = document.createElement("span");
     src.className = "src"; src.textContent = p.kind === "bundle" ? "bundle" : "patch";
     const meta = document.createElement("span");
-    meta.className = "meta"; meta.textContent = p.disabled ? "已禁用" : "已启用";
+    meta.className = "meta"; meta.textContent = p.disabled ? t("disabled") : t("enabled");
     row.append(dot, id, meta, src);
     list.appendChild(row);
   }
@@ -200,10 +249,10 @@ async function selectPlugin(id) {
   const sub = document.createElement("div"); sub.className = "sub"; sub.textContent = p.description || p.name || ""; d.appendChild(sub);
   const kv = document.createElement("dl"); kv.className = "kv";
   const rows = [
-    ["来源", p.kind === "bundle" ? "bundle（dsh.profile.bundles）" : "patch（cordis.patch.yml）"],
-    ["名称", p.name],
-    ["版本", p.version || "—"],
-    ["状态", p.disabled ? "已禁用" : "已启用"],
+    [t("source"), p.kind === "bundle" ? t("bundleSrc") : t("patchSrc")],
+    [t("name"), p.name],
+    [t("version"), p.version || "—"],
+    [t("status"), p.disabled ? t("disabled") : t("enabled")],
   ];
   for (const [k, v] of rows) {
     const dt = document.createElement("dt"); dt.textContent = k;
@@ -211,34 +260,34 @@ async function selectPlugin(id) {
     kv.append(dt, dd);
   }
   d.appendChild(kv);
-  const cdt = document.createElement("dt"); cdt.textContent = "config";
+  const cdt = document.createElement("dt"); cdt.textContent = t("config");
   const cdd = document.createElement("dd");
   cdd.style.display = "flex"; cdd.style.flexDirection = "column"; cdd.style.gap = "6px";
   const ta = document.createElement("textarea");
   ta.id = "configEditor"; ta.rows = 4; ta.style.font = "12px monospace"; ta.style.width = "100%"; ta.style.boxSizing = "border-box";
   ta.value = p.config ? JSON.stringify(p.config, null, 2) : "";
-  ta.placeholder = "插件 config（JSON，留空表示无）";
+  ta.placeholder = t("configPh");
   const save = document.createElement("button");
-  save.textContent = "保存 config";
+  save.textContent = t("saveConfig");
   save.onclick = () => saveConfig(p.id);
   cdd.append(ta, save);
   kv.append(cdt, cdd);
   const actions = document.createElement("div"); actions.className = "actions";
   if (!p.disabled) {
     const b = document.createElement("button");
-    b.textContent = "禁用";
-    b.onclick = async () => { await api("/api/toggle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id: p.id, disabled: true }) }); toast("已禁用 " + p.id); await loadPlugins(); };
+    b.textContent = t("disable");
+    b.onclick = async () => { await api("/api/toggle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id: p.id, disabled: true }) }); toast(t("disable") + " " + p.id); await loadPlugins(); };
     actions.appendChild(b);
   } else {
     const b = document.createElement("button"); b.className = "primary";
-    b.textContent = "启用";
-    b.onclick = async () => { await api("/api/toggle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id: p.id, disabled: false }) }); toast("已启用 " + p.id); await loadPlugins(); };
+    b.textContent = t("enable");
+    b.onclick = async () => { await api("/api/toggle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id: p.id, disabled: false }) }); toast(t("enable") + " " + p.id); await loadPlugins(); };
     actions.appendChild(b);
   }
   if (p.kind === "bundle") {
     const r = document.createElement("button");
-    r.textContent = "从 bundles 移除";
-    r.onclick = async () => { await api("/api/bundle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name: p.name, enabled: false }) }); toast("已移除 bundle " + p.name); await loadPlugins(); };
+    r.textContent = t("removeBundle");
+    r.onclick = async () => { await api("/api/bundle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name: p.name, enabled: false }) }); toast("bundle " + p.name + " " + t("removeBundle")); await loadPlugins(); };
     actions.appendChild(r);
   }
   d.appendChild(actions);
@@ -251,9 +300,9 @@ async function reorderBundles(from, to) {
   names.splice(i, 1); names.splice(j, 0, from);
   try {
     await api("/api/reorder", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, bundles: names }) });
-    toast("bundle 顺序已更新");
+    toast(t("orderUpdated"));
     await loadPlugins();
-  } catch (e) { toast("排序失败: " + e.message); }
+  } catch (e) { toast(t("orderFail") + ": " + e.message); }
 }
 async function exportProfile() {
   try {
@@ -264,7 +313,7 @@ async function exportProfile() {
     a.download = "dsh-profile-" + currentProfile + "-plugins.json";
     a.click();
     URL.revokeObjectURL(a.href);
-  } catch (e) { toast("导出失败: " + e.message); }
+  } catch (e) { toast(t("exportFail") + ": " + e.message); }
 }
 function openSearch() {
   const existing = document.getElementById("searchModal");
@@ -277,15 +326,15 @@ function openSearch() {
   const head = document.createElement("div");
   head.style.cssText = "display:flex;gap:8px;align-items:center";
   const input = document.createElement("input");
-  input.placeholder = "npm 搜索 DSH 插件…"; input.style.flex = "1";
-  const go = document.createElement("button"); go.textContent = "搜索"; go.className = "primary";
+  input.placeholder = t("searchPh"); input.style.flex = "1";
+  const go = document.createElement("button"); go.textContent = t("doSearch"); go.className = "primary";
   const close = document.createElement("button"); close.textContent = "✕";
   close.onclick = () => modal.remove();
   head.append(input, go, close);
   const results = document.createElement("div");
   results.style.cssText = "overflow-y:auto;display:flex;flex-direction:column;gap:6px";
   go.onclick = async () => {
-    results.innerHTML = '<div class="empty">搜索中…</div>';
+    results.innerHTML = '<div class="empty">' + t("searching") + "</div>";
     try {
       const list = await api("/api/search?q=" + encodeURIComponent(input.value));
       if (!Array.isArray(list)) { results.innerHTML = '<div class="empty">' + (list.error || "无结果") + "</div>"; return; }
@@ -297,7 +346,7 @@ function openSearch() {
         info.style.flex = "1";
         info.innerHTML = "<b>" + (p.name || "") + "</b> <span style='color:var(--muted)'>" + (p.version || "") + "</span><br><small style='color:var(--muted)'>" + (p.description || "") + "</small>";
         const btn = document.createElement("button");
-        btn.textContent = "安装";
+        btn.textContent = t("install");
         btn.className = "primary";
         btn.onclick = async () => {
           btn.disabled = true; btn.textContent = "…";
@@ -305,13 +354,13 @@ function openSearch() {
             const r = await api("/api/install", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, package: p.name }) });
             toast(r.ok ? "已安装 " + p.name + "（重启 dsh 生效）" : "安装失败: " + r.output);
             if (r.ok) await loadPlugins();
-          } catch (e) { toast("安装失败: " + e.message); }
+          } catch (e) { toast(t("installFail") + ": " + e.message); }
           btn.disabled = false; btn.textContent = "安装";
         };
         row.append(info, btn);
         results.appendChild(row);
       }
-      if (!list.length) results.innerHTML = '<div class="empty">无结果</div>';
+      if (!list.length) results.innerHTML = '<div class="empty">' + t("none") + "</div>";
     } catch (e) { results.innerHTML = '<div class="empty">' + e.message + "</div>"; }
   };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") go.click(); });
@@ -329,13 +378,13 @@ function importProfile() {
     if (!f) return;
     const text = await f.text();
     let data;
-    try { data = JSON.parse(text); } catch { return toast("文件不是合法 JSON"); }
-    if (!confirm("导入将覆盖 " + currentProfile + " 的 bundles/patch（会自动备份），继续？")) return;
+    try { data = JSON.parse(text); } catch { return toast(t("invalidJson")); }
+    if (!confirm(t("importConfirm", { p: currentProfile }))) return;
     try {
       await api("/api/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, bundles: data.bundles || [], patch: data.patchEntries || null }) });
-      toast("已导入 " + currentProfile);
+      toast(t("importOk") + " " + currentProfile);
       await loadPlugins();
-    } catch (e) { toast("导入失败: " + e.message); }
+    } catch (e) { toast(t("importFail") + ": " + e.message); }
   };
   file.click();
 }
@@ -347,10 +396,10 @@ function toggleTheme() {
 async function installPlugin() {
   const input = document.getElementById("installInput");
   const pkg = input.value.trim();
-  if (!pkg) return toast("输入包名");
+  if (!pkg) return toast(t("pkgName"));
   try {
     const r = await api("/api/install", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, package: pkg }) });
-    toast(r.ok ? "安装成功（重启 dsh 生效）" : "安装失败: " + r.output);
+    toast(r.ok ? t("installOk") + t("restartNote") : t("installFail") + ": " + r.output);
     input.value = "";
     await loadPlugins();
   } catch (e) { toast("安装失败: " + e.message); }
