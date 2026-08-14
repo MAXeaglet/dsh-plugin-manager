@@ -17,6 +17,11 @@ writeFileSync(join(prof, "node_modules", "@deepseek-ai", "dsh-base", "package.js
 writeFileSync(join(prof, "package.json"), JSON.stringify({ name: "dsh-profile-web", dsh: { profile: { bundles: ["@deepseek-ai/dsh-base"] } } }, null, 2) + "\n", "utf8");
 // patch with one enabled row + one insert
 writeFileSync(join(prof, "cordis.patch.yml"), "- id: tool-web\n  name: '@deepseek-ai/dsh-tool-web'\n  config:\n    search: false\n- insert:\n    - id: tool-bash-terminal\n      name: 'dsh-bash-terminal'\n", "utf8");
+// fake bundle with its own bundle patch manifest (real inserted id != package short name)
+mkdirSync(join(prof, "node_modules", "@dsh-external", "dsh-vision-toolkit"), { recursive: true });
+writeFileSync(join(prof, "node_modules", "@dsh-external", "dsh-vision-toolkit", "package.json"), JSON.stringify({ name: "@dsh-external/dsh-vision-toolkit", version: "0.1.4" }), "utf8");
+writeFileSync(join(prof, "node_modules", "@dsh-external", "dsh-vision-toolkit", "cordis.patch.yml"), "# bundle patch\n- insert:\n    - id: vision-toolkit\n      name: '@dsh-external/dsh-vision-toolkit'\n", "utf8");
+writeFileSync(join(prof, "package.json"), JSON.stringify({ name: "dsh-profile-web", dsh: { profile: { bundles: ["@deepseek-ai/dsh-base", "@dsh-external/dsh-vision-toolkit"] } } }, null, 2) + "\n", "utf8");
 
 // 1. list merges bundles + patch
 const plugins = listPlugins("web");
@@ -58,6 +63,19 @@ setPluginConfig("web", "tool-web", { search: true, extra: 1 });
 const cfg = readProfile("web").patchEntries.find((e) => e.id === "tool-web");
 assert.deepStrictEqual(cfg.config, { search: true, extra: 1 }, "config updated");
 assert.strictEqual(cfg.name, "@deepseek-ai/dsh-tool-web", "name intact after config set");
+
+// 7. bundle disable expands to the REAL inserted id (package short name differs)
+setPluginDisabled("web", "dsh-vision-toolkit", true);
+const vtPatch = readFileSync(join(prof, "cordis.patch.yml"), "utf8");
+assert.ok(vtPatch.includes("id: vision-toolkit") && vtPatch.includes("disabled: true"), "bundle disabled via real insert id");
+const vtPlugins = listPlugins("web");
+const vtBundle = vtPlugins.find((p) => p.id === "dsh-vision-toolkit");
+assert.strictEqual(vtBundle.disabled, true, "bundle shown disabled");
+assert.ok(vtBundle.insertIds.includes("vision-toolkit"), "insertIds exposed");
+// 8. re-enable removes the disabled flag
+setPluginDisabled("web", "dsh-vision-toolkit", false);
+const vtPlugins2 = listPlugins("web");
+assert.strictEqual(vtPlugins2.find((p) => p.id === "dsh-vision-toolkit").disabled, false, "bundle re-enabled");
 
 rmSync(tmp, { recursive: true, force: true });
 console.log("API TESTS PASSED");

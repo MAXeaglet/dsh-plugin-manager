@@ -42,6 +42,8 @@ struct PluginInfo {
     author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     license: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    insert_ids: Option<Vec<String>>,
 }
 
 #[tauri::command]
@@ -96,6 +98,33 @@ fn bundle_package(profile: &str, name: &str) -> Option<Json> {
     None
 }
 
+fn bundle_insert_ids(profile: &str, name: &str) -> Vec<String> {
+    let candidates = [
+        profile_dir(profile).join("node_modules").join(name).join("cordis.patch.yml"),
+        profiles_dir().join("node_modules").join(name).join("cordis.patch.yml"),
+    ];
+    for c in candidates {
+        if let Ok(s) = fs::read_to_string(&c) {
+            if let Ok(v) = serde_yaml::from_str::<serde_yaml::Value>(&s) {
+                if let Some(seq) = v.as_sequence() {
+                    let mut ids = Vec::new();
+                    for entry in seq {
+                        if let Some(ins) = entry.get("insert").and_then(|x| x.as_sequence()) {
+                            for item in ins {
+                                if let Some(id) = item.get("id").and_then(|x| x.as_str()) {
+                                    ids.push(id.to_string());
+                                }
+                            }
+                        }
+                    }
+                    if !ids.is_empty() { return ids; }
+                }
+            }
+        }
+    }
+    vec![]
+}
+
 #[tauri::command]
 fn list_plugins(profile: String) -> Vec<PluginInfo> {
     use std::collections::BTreeMap;
@@ -108,7 +137,7 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
                     let name = ins.get("name").and_then(|v| v.as_str()).unwrap_or(id).to_string();
                     by_id.insert(id.to_string(), PluginInfo {
                         id: id.to_string(), name, source: "patch".into(), kind: "insert".into(),
-                        disabled: false, version: None, description: None, config: None, has_bundle: None, has_client: None, author: None, license: None,
+                        disabled: false, version: None, description: None, config: None, has_bundle: None, has_client: None, author: None, license: None, insert_ids: None,
                     });
                 }
             }
@@ -120,7 +149,7 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
             let config = entry.get("config").cloned().and_then(|c| serde_json::from_value(serde_yaml_to_json(c)).ok());
             by_id.insert(id.to_string(), PluginInfo {
                 id: id.to_string(), name, source: "patch".into(), kind: "row".into(),
-                disabled, version: None, description: None, config, has_bundle: None, has_client: None, author: None, license: None,
+                disabled, version: None, description: None, config, has_bundle: None, has_client: None, author: None, license: None, insert_ids: None,
             });
         }
     }
@@ -128,21 +157,29 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
     for name in bundles_of(&profile) {
         let id = name.rsplit('/').next().unwrap_or(&name).to_string();
         let pkg = bundle_package(&profile, &name);
-        let existing = by_id.get(&id);
         let dsh = pkg.as_ref().and_then(|p| p.get("dsh"));
+        let insert_ids = bundle_insert_ids(&profile, &name);
+        let disabled = if !insert_ids.is_empty() {
+            insert_ids.iter().all(|rid| by_id.get(rid).map(|e| e.disabled).unwrap_or(false))
+        } else {
+            by_id.get(&id).map(|e| e.disabled).unwrap_or(false)
+        };
+        let config = insert_ids.iter().find_map(|rid| by_id.get(rid).and_then(|e| e.config.clone()))
+            .or_else(|| by_id.get(&id).and_then(|e| e.config.clone()));
         let info = PluginInfo {
             id: id.clone(),
             name: name.clone(),
             source: "bundle".into(),
             kind: "bundle".into(),
-            disabled: existing.map(|e| e.disabled).unwrap_or(false),
+            disabled,
             version: pkg.as_ref().and_then(|p| p.get("version").and_then(|v| v.as_str()).map(|s| s.to_string())),
             description: pkg.as_ref().and_then(|p| p.get("description").and_then(|v| v.as_str()).map(|s| s.to_string())),
-            config: existing.and_then(|e| e.config.clone()),
+            config,
             has_bundle: dsh.and_then(|d| d.get("bundle")).map(|_| true),
             has_client: dsh.and_then(|d| d.get("client")).map(|_| true),
             author: pkg.as_ref().and_then(|p| p.get("author").and_then(|v| v.as_str()).map(|s| s.to_string())),
             license: pkg.as_ref().and_then(|p| p.get("license").and_then(|v| v.as_str()).map(|s| s.to_string())),
+            insert_ids: if insert_ids.is_empty() { None } else { Some(insert_ids) },
         };
         by_id.insert(id, info);
     }
@@ -170,22 +207,12 @@ fn serde_yaml_to_json(v: serde_yaml::Value) -> Json {
     }
 }
 
-#[tauri::command]
-fn set_plugin_disabled(profile: String, id: String, disabled: bool) -> Result<Json, String> {
-    let dir = profile_dir(&profile);
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let path = dir.join("cordis.patch.yml");
-    let content = fs::read_to_string(&path).unwrap_or_default();
-    let mut doc: serde_yaml::Value = if content.trim().is_empty() {
-        serde_yaml::Value::Sequence(vec![])
-    } else {
-        serde_yaml::from_str(&content).unwrap_or(serde_yaml::Value::Sequence(vec![]))
-    };
-    let seq = doc.as_sequence_mut().ok_or("patch root is not a list")?;
+fn patch_row_set_disabled(doc: &mut serde_yaml::Value, id: &str, disabled: bool) {
+    let seq = doc.as_sequence_mut().unwrap();
     let mut found = false;
     for entry in seq.iter_mut() {
-        if entry.get("id").and_then(|v| v.as_str()) == Some(id.as_str()) {
-            let map = entry.as_mapping_mut().ok_or("entry is not a mapping")?;
+        if entry.get("id").and_then(|v| v.as_str()) == Some(id) {
+            let map = entry.as_mapping_mut().unwrap();
             if disabled {
                 map.insert(serde_yaml::Value::String("disabled".into()), serde_yaml::Value::Bool(true));
             } else {
@@ -197,10 +224,40 @@ fn set_plugin_disabled(profile: String, id: String, disabled: bool) -> Result<Js
     }
     if !found {
         let mut map = serde_yaml::Mapping::new();
-        map.insert(serde_yaml::Value::String("id".into()), serde_yaml::Value::String(id.clone()));
-        map.insert(serde_yaml::Value::String("name".into()), serde_yaml::Value::String(id.clone()));
-        map.insert(serde_yaml::Value::String("disabled".into()), serde_yaml::Value::Bool(disabled));
+        map.insert(serde_yaml::Value::String("id".into()), serde_yaml::Value::String(id.into()));
+        map.insert(serde_yaml::Value::String("name".into()), serde_yaml::Value::String(id.into()));
+        if disabled {
+            map.insert(serde_yaml::Value::String("disabled".into()), serde_yaml::Value::Bool(true));
+        }
         seq.push(serde_yaml::Value::Mapping(map));
+    }
+}
+
+#[tauri::command]
+fn set_plugin_disabled(profile: String, id: String, disabled: bool) -> Result<Json, String> {
+    let dir = profile_dir(&profile);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join("cordis.patch.yml");
+    let content = fs::read_to_string(&path).unwrap_or_default();
+    let mut doc: serde_yaml::Value = if content.trim().is_empty() {
+        serde_yaml::Value::Sequence(vec![])
+    } else {
+        serde_yaml::from_str(&content).unwrap_or(serde_yaml::Value::Sequence(vec![]))
+    };
+    if doc.as_sequence().is_none() {
+        doc = serde_yaml::Value::Sequence(vec![]);
+    }
+    // bundle id (package short name): expand to the package's real inserted ids
+    let full = bundles_of(&profile).into_iter().find(|b| b.rsplit('/').next().unwrap_or(b) == id);
+    let ids: Vec<String> = match full {
+        Some(f) => {
+            let r = bundle_insert_ids(&profile, &f);
+            if r.is_empty() { vec![id.clone()] } else { r }
+        }
+        None => vec![id.clone()],
+    };
+    for rid in &ids {
+        patch_row_set_disabled(&mut doc, rid, disabled);
     }
     atomic_write(&path, &serde_yaml::to_string(&doc).map_err(|e| e.to_string())?)?;
     Ok(serde_json::json!({ "id": id, "disabled": disabled }))
