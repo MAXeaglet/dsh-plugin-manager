@@ -38,6 +38,10 @@ struct PluginInfo {
     has_bundle: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     has_client: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    author: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    license: Option<String>,
 }
 
 #[tauri::command]
@@ -104,7 +108,7 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
                     let name = ins.get("name").and_then(|v| v.as_str()).unwrap_or(id).to_string();
                     by_id.insert(id.to_string(), PluginInfo {
                         id: id.to_string(), name, source: "patch".into(), kind: "insert".into(),
-                        disabled: false, version: None, description: None, config: None, has_bundle: None, has_client: None,
+                        disabled: false, version: None, description: None, config: None, has_bundle: None, has_client: None, author: None, license: None,
                     });
                 }
             }
@@ -116,7 +120,7 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
             let config = entry.get("config").cloned().and_then(|c| serde_json::from_value(serde_yaml_to_json(c)).ok());
             by_id.insert(id.to_string(), PluginInfo {
                 id: id.to_string(), name, source: "patch".into(), kind: "row".into(),
-                disabled, version: None, description: None, config, has_bundle: None, has_client: None,
+                disabled, version: None, description: None, config, has_bundle: None, has_client: None, author: None, license: None,
             });
         }
     }
@@ -137,6 +141,8 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
             config: existing.and_then(|e| e.config.clone()),
             has_bundle: dsh.and_then(|d| d.get("bundle")).map(|_| true),
             has_client: dsh.and_then(|d| d.get("client")).map(|_| true),
+            author: pkg.as_ref().and_then(|p| p.get("author").and_then(|v| v.as_str()).map(|s| s.to_string())),
+            license: pkg.as_ref().and_then(|p| p.get("license").and_then(|v| v.as_str()).map(|s| s.to_string())),
         };
         by_id.insert(id, info);
     }
