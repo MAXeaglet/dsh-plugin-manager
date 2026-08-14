@@ -34,6 +34,10 @@ struct PluginInfo {
     description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     config: Option<Json>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    has_bundle: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    has_client: Option<bool>,
 }
 
 #[tauri::command]
@@ -100,7 +104,7 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
                     let name = ins.get("name").and_then(|v| v.as_str()).unwrap_or(id).to_string();
                     by_id.insert(id.to_string(), PluginInfo {
                         id: id.to_string(), name, source: "patch".into(), kind: "insert".into(),
-                        disabled: false, version: None, description: None, config: None,
+                        disabled: false, version: None, description: None, config: None, has_bundle: None, has_client: None,
                     });
                 }
             }
@@ -112,7 +116,7 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
             let config = entry.get("config").cloned().and_then(|c| serde_json::from_value(serde_yaml_to_json(c)).ok());
             by_id.insert(id.to_string(), PluginInfo {
                 id: id.to_string(), name, source: "patch".into(), kind: "row".into(),
-                disabled, version: None, description: None, config,
+                disabled, version: None, description: None, config, has_bundle: None, has_client: None,
             });
         }
     }
@@ -121,6 +125,7 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
         let id = name.rsplit('/').next().unwrap_or(&name).to_string();
         let pkg = bundle_package(&profile, &name);
         let existing = by_id.get(&id);
+        let dsh = pkg.as_ref().and_then(|p| p.get("dsh"));
         let info = PluginInfo {
             id: id.clone(),
             name: name.clone(),
@@ -130,6 +135,8 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
             version: pkg.as_ref().and_then(|p| p.get("version").and_then(|v| v.as_str()).map(|s| s.to_string())),
             description: pkg.as_ref().and_then(|p| p.get("description").and_then(|v| v.as_str()).map(|s| s.to_string())),
             config: existing.and_then(|e| e.config.clone()),
+            has_bundle: dsh.and_then(|d| d.get("bundle")).map(|_| true),
+            has_client: dsh.and_then(|d| d.get("client")).map(|_| true),
         };
         by_id.insert(id, info);
     }
@@ -379,11 +386,52 @@ fn set_plugin_config(profile: String, id: String, config: Option<Json>) -> Resul
     Ok(serde_json::json!({ "id": id, "config": config }))
 }
 
+#[tauri::command]
+fn search_npm(query: String) -> Json {
+    let out = Command::new("npm").args(["search", &query, "--json"]).output();
+    match out {
+        Ok(o) if o.status.success() => {
+            if let Ok(list) = serde_json::from_slice::<Vec<Json>>(&o.stdout) {
+                let results: Vec<Json> = list.into_iter().map(|p| serde_json::json!({
+                    "name": p.get("name").cloned().unwrap_or(Json::Null),
+                    "version": p.get("version").cloned().unwrap_or(Json::Null),
+                    "description": p.get("description").cloned().unwrap_or(Json::Null),
+                })).collect();
+                return serde_json::json!(results);
+            }
+            serde_json::json!([])
+        }
+        Ok(_) => serde_json::json!({ "error": "npm search failed" }),
+        Err(e) => serde_json::json!({ "error": e.to_string() }),
+    }
+}
+
+#[tauri::command]
+fn import_profile(profile: String, bundles: Option<Vec<String>>, patch: Option<Json>) -> Result<Json, String> {
+    let dir = profile_dir(&profile);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    if let Some(b) = bundles {
+        let manifest_path = dir.join("package.json");
+        let mut manifest = read_json(&manifest_path).unwrap_or(serde_json::json!({}));
+        if manifest.get("dsh").is_none() { manifest["dsh"] = serde_json::json!({}); }
+        let dsh = manifest.get_mut("dsh").unwrap();
+        if dsh.get("profile").is_none() { dsh["profile"] = serde_json::json!({}); }
+        dsh.get_mut("profile").unwrap()["bundles"] = serde_json::json!(b);
+        atomic_write(&manifest_path, &serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?)?;
+    }
+    if let Some(p) = patch {
+        let patch_path = dir.join("cordis.patch.yml");
+        let doc = json_to_serde_yaml(p);
+        atomic_write(&patch_path, &serde_yaml::to_string(&doc).map_err(|e| e.to_string())?)?;
+    }
+    Ok(serde_json::json!({ "profile": profile, "imported": true }))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             list_profiles, list_plugins, set_plugin_disabled, set_bundle, set_bundle_order, export_profile, install_plugin,
-            dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config
+            dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config, search_npm, import_profile
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

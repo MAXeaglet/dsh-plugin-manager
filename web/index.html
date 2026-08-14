@@ -56,7 +56,9 @@
   <button id="stopBtn" onclick="stopDsh()">停止 dsh</button>
   <div class="spacer"></div>
   <input id="searchInput" placeholder="搜索…" style="width: 140px" oninput="renderList()">
+  <button onclick="openSearch()">🔍 搜插件</button>
   <button onclick="exportProfile()">导出</button>
+  <button onclick="importProfile()">导入</button>
   <button onclick="toggleTheme()" id="themeBtn">🌙</button>
   <input id="installInput" placeholder="npm 包名…" style="width: 200px">
   <button class="primary" onclick="installPlugin()">安装</button>
@@ -90,6 +92,8 @@ async function api(path, opts) {
       case "/api/dsh-stop": return await invoke("stop_dsh");
       case "/api/profile-info": return await invoke("profile_info", { profile: qs.get("profile") });
       case "/api/config": return await invoke("set_plugin_config", body);
+      case "/api/search": return await invoke("search_npm", { query: qs.get("q") || "" });
+      case "/api/import": return await invoke("import_profile", body);
     }
     throw new Error("unknown api " + name);
   }
@@ -261,6 +265,79 @@ async function exportProfile() {
     a.click();
     URL.revokeObjectURL(a.href);
   } catch (e) { toast("导出失败: " + e.message); }
+}
+function openSearch() {
+  const existing = document.getElementById("searchModal");
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement("div");
+  modal.id = "searchModal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10";
+  const panel = document.createElement("div");
+  panel.style.cssText = "background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;width:560px;max-height:70vh;display:flex;flex-direction:column;gap:8px";
+  const head = document.createElement("div");
+  head.style.cssText = "display:flex;gap:8px;align-items:center";
+  const input = document.createElement("input");
+  input.placeholder = "npm 搜索 DSH 插件…"; input.style.flex = "1";
+  const go = document.createElement("button"); go.textContent = "搜索"; go.className = "primary";
+  const close = document.createElement("button"); close.textContent = "✕";
+  close.onclick = () => modal.remove();
+  head.append(input, go, close);
+  const results = document.createElement("div");
+  results.style.cssText = "overflow-y:auto;display:flex;flex-direction:column;gap:6px";
+  go.onclick = async () => {
+    results.innerHTML = '<div class="empty">搜索中…</div>';
+    try {
+      const list = await api("/api/search?q=" + encodeURIComponent(input.value));
+      if (!Array.isArray(list)) { results.innerHTML = '<div class="empty">' + (list.error || "无结果") + "</div>"; return; }
+      results.innerHTML = "";
+      for (const p of list.slice(0, 30)) {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:8px";
+        const info = document.createElement("div");
+        info.style.flex = "1";
+        info.innerHTML = "<b>" + (p.name || "") + "</b> <span style='color:var(--muted)'>" + (p.version || "") + "</span><br><small style='color:var(--muted)'>" + (p.description || "") + "</small>";
+        const btn = document.createElement("button");
+        btn.textContent = "安装";
+        btn.className = "primary";
+        btn.onclick = async () => {
+          btn.disabled = true; btn.textContent = "…";
+          try {
+            const r = await api("/api/install", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, package: p.name }) });
+            toast(r.ok ? "已安装 " + p.name + "（重启 dsh 生效）" : "安装失败: " + r.output);
+            if (r.ok) await loadPlugins();
+          } catch (e) { toast("安装失败: " + e.message); }
+          btn.disabled = false; btn.textContent = "安装";
+        };
+        row.append(info, btn);
+        results.appendChild(row);
+      }
+      if (!list.length) results.innerHTML = '<div class="empty">无结果</div>';
+    } catch (e) { results.innerHTML = '<div class="empty">' + e.message + "</div>"; }
+  };
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") go.click(); });
+  panel.append(head, results);
+  modal.appendChild(panel);
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  document.body.appendChild(modal);
+  input.focus();
+}
+function importProfile() {
+  const file = document.createElement("input");
+  file.type = "file"; file.accept = ".json";
+  file.onchange = async () => {
+    const f = file.files[0];
+    if (!f) return;
+    const text = await f.text();
+    let data;
+    try { data = JSON.parse(text); } catch { return toast("文件不是合法 JSON"); }
+    if (!confirm("导入将覆盖 " + currentProfile + " 的 bundles/patch（会自动备份），继续？")) return;
+    try {
+      await api("/api/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, bundles: data.bundles || [], patch: data.patchEntries || null }) });
+      toast("已导入 " + currentProfile);
+      await loadPlugins();
+    } catch (e) { toast("导入失败: " + e.message); }
+  };
+  file.click();
 }
 function toggleTheme() {
   const root = document.documentElement;
