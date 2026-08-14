@@ -4,8 +4,6 @@
   "version": "0.1.0",
   "identifier": "com.maxeagle.dsh-plugin-manager",
   "build": {
-    "beforeDevCommand": "",
-    "devUrl": "",
     "frontendDist": "../web"
   },
   "app": {
