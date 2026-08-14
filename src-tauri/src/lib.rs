@@ -127,13 +127,30 @@ fn bundle_insert_ids(profile: &str, name: &str) -> Vec<String> {
 
 #[tauri::command]
 fn list_plugins(profile: String) -> Vec<PluginInfo> {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashSet};
     let mut by_id: BTreeMap<String, PluginInfo> = BTreeMap::new();
+
+    // real insert ids per bundle (short id -> set), for folding patch rows into bundles
+    let bundles = bundles_of(&profile);
+    let mut bundle_inserts: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut all_insert_ids: HashSet<String> = HashSet::new();
+    for name in &bundles {
+        let ids = bundle_insert_ids(&profile, name);
+        if !ids.is_empty() {
+            let short = name.rsplit('/').next().unwrap_or(name).to_string();
+            bundle_inserts.insert(short, ids.clone());
+            all_insert_ids.extend(ids);
+        }
+    }
+    // disabled/config carried by patch rows that belong to a bundle
+    let mut row_disabled: BTreeMap<String, bool> = BTreeMap::new();
+    let mut row_config: BTreeMap<String, Json> = BTreeMap::new();
 
     for entry in patch_entries(&profile) {
         if let Some(seq) = entry.get("insert").and_then(|v| v.as_sequence()) {
             for ins in seq {
                 if let Some(id) = ins.get("id").and_then(|v| v.as_str()) {
+                    if all_insert_ids.contains(id) { continue; }
                     let name = ins.get("name").and_then(|v| v.as_str()).unwrap_or(id).to_string();
                     by_id.insert(id.to_string(), PluginInfo {
                         id: id.to_string(), name, source: "patch".into(), kind: "insert".into(),
@@ -147,6 +164,11 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
             let name = entry.get("name").and_then(|v| v.as_str()).unwrap_or(id).to_string();
             let disabled = entry.get("disabled").and_then(|v| v.as_bool()).unwrap_or(false);
             let config = entry.get("config").cloned().and_then(|c| serde_json::from_value(serde_yaml_to_json(c)).ok());
+            if all_insert_ids.contains(id) {
+                row_disabled.insert(id.to_string(), disabled);
+                if config.is_some() { row_config.insert(id.to_string(), config.unwrap()); }
+                continue;
+            }
             by_id.insert(id.to_string(), PluginInfo {
                 id: id.to_string(), name, source: "patch".into(), kind: "row".into(),
                 disabled, version: None, description: None, config, has_bundle: None, has_client: None, author: None, license: None, insert_ids: None,
@@ -154,17 +176,17 @@ fn list_plugins(profile: String) -> Vec<PluginInfo> {
         }
     }
 
-    for name in bundles_of(&profile) {
+    for name in bundles {
         let id = name.rsplit('/').next().unwrap_or(&name).to_string();
         let pkg = bundle_package(&profile, &name);
         let dsh = pkg.as_ref().and_then(|p| p.get("dsh"));
-        let insert_ids = bundle_insert_ids(&profile, &name);
+        let insert_ids = bundle_inserts.get(&id).cloned().unwrap_or_default();
         let disabled = if !insert_ids.is_empty() {
-            insert_ids.iter().all(|rid| by_id.get(rid).map(|e| e.disabled).unwrap_or(false))
+            insert_ids.iter().all(|rid| row_disabled.get(rid).copied().unwrap_or(false))
         } else {
             by_id.get(&id).map(|e| e.disabled).unwrap_or(false)
         };
-        let config = insert_ids.iter().find_map(|rid| by_id.get(rid).and_then(|e| e.config.clone()))
+        let config = insert_ids.iter().find_map(|rid| row_config.get(rid).cloned())
             .or_else(|| by_id.get(&id).and_then(|e| e.config.clone()));
         let info = PluginInfo {
             id: id.clone(),
