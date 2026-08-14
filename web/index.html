@@ -18,11 +18,12 @@
     <h1>DSH Plugin Manager</h1>
     <span style="color:var(--dim);font-family:var(--mono);font-size:11.5px" id="profileLabel"></span>
     <div class="spacer"></div>
-    <button class="btn" onclick="showProfileFiles()" title="view profile files">📄 配置文件</button>
+    <button class="btn" onclick="togglePure()" id="pureBtn" title="纯净模式：禁用所有第三方插件">🧹 纯净模式</button>
+    <button class="btn" onclick="showProfileFiles()" id="profileFilesBtn" title="view profile files">📄 配置文件</button>
     <input id="dshPort" type="number" min="1" max="65535" value="3080" title="dsh web 端口" style="width:64px;background:var(--bg-2,transparent);border:1px solid var(--border-l1,currentColor);color:inherit;border-radius:18px;padding:5px 10px;font-family:var(--mono);font-size:12px;text-align:center">
-    <button class="btn primary" onclick="startDsh()" title="启动 dsh web">▶ 启动 dsh</button>
-    <button class="btn" onclick="stopDsh()" title="停止 dsh web">⏹ 停止</button>
-    <button class="btn" onclick="openSearch()" title="搜索并安装插件">🔍 装插件</button>
+    <button class="btn primary" onclick="startDsh()" id="startBtn" title="启动 dsh web">▶ 启动 dsh</button>
+    <button class="btn" onclick="stopDsh()" id="stopBtn" title="停止 dsh web">⏹ 停止</button>
+    <button class="btn" onclick="openSearch()" id="installBtn" title="搜索并安装插件">🔍 装插件</button>
     <button class="btn sm" onclick="checkUpdates()" title="检查更新">⬆</button>
     <button class="btn sm" onclick="toggleTheme()" id="themeBtn">🌙</button>
     <button class="btn sm" onclick="setLang(LANG==='zh'?'en':'zh')" id="langBtn">EN</button>
@@ -38,12 +39,19 @@
 <div class="toast" id="toast"></div>
 <script>
 const I18N = {
-  zh: { enabled: "已启用", disabled: "已禁用", source: "来源", name: "名称", version: "版本", status: "状态", compat: "兼容", config: "config", enable: "启用", disable: "禁用", removeBundle: "移除", saveConfig: "保存 config", configPh: "插件 config（JSON，留空表示无）", empty: "选择插件查看详情", none: "无插件", running: "dsh web 运行中", stopped: "dsh web 未运行", readme: "README", profileFiles: "配置文件" },
-  en: { enabled: "enabled", disabled: "disabled", source: "Source", name: "Name", version: "Version", status: "Status", compat: "Compat", config: "config", enable: "Enable", disable: "Disable", removeBundle: "Remove", saveConfig: "Save config", configPh: "Plugin config (JSON, empty = none)", empty: "Select a plugin", none: "No plugins", running: "dsh web running", stopped: "dsh web stopped", readme: "README", profileFiles: "Profile files" }
+  zh: { enabled: "已启用", disabled: "已禁用", source: "来源", name: "名称", version: "版本", status: "状态", compat: "兼容", config: "config", enable: "启用", disable: "禁用", removeBundle: "移除", saveConfig: "保存 config", configPh: "插件 config（JSON，留空表示无）", empty: "选择插件查看详情", none: "无插件", running: "dsh web 运行中", stopped: "dsh web 未运行", readme: "README", profileFiles: "配置文件", pure: "纯净模式", startDsh: "启动 dsh", stopDsh: "停止", installPlugin: "装插件", save: "保存", search: "搜索", install: "安装", pureAskOn: "纯净模式：禁用所有第三方插件（保留 @deepseek-ai 官方）？", pureAskOff: "退出纯净模式：重新启用所有第三方插件？", pureOn: "纯净模式", pureOff: "已恢复", loading: "加载中…", noProfiles: "无 profile", noProfileHint: "未找到 profile（检查 ~/.dsh/profiles）", loadFailed: "加载失败", searchPh: "搜索 npm DSH 插件…", searching: "搜索中…", noResult: "无结果", saved: "已保存", startFailed: "启动失败", checkFailed: "检查失败", installOk: "已安装", installFail: "安装失败", stopConfirm: "停止 dsh web?" },
+  en: { enabled: "enabled", disabled: "disabled", source: "Source", name: "Name", version: "Version", status: "Status", compat: "Compat", config: "config", enable: "Enable", disable: "Disable", removeBundle: "Remove", saveConfig: "Save config", configPh: "Plugin config (JSON, empty = none)", empty: "Select a plugin", none: "No plugins", running: "dsh web running", stopped: "dsh web stopped", readme: "README", profileFiles: "Profile files", pure: "Pure mode", startDsh: "Start dsh", stopDsh: "Stop", installPlugin: "Install", save: "Save", search: "Search", install: "Install", pureAskOn: "Pure mode: disable all third-party plugins (keep @deepseek-ai official)?", pureAskOff: "Exit pure mode: re-enable all third-party plugins?", pureOn: "Pure mode", pureOff: "Restored", loading: "Loading…", noProfiles: "No profiles", noProfileHint: "No profiles found (check ~/.dsh/profiles)", loadFailed: "Load failed", searchPh: "Search npm DSH plugins…", searching: "Searching…", noResult: "No results", saved: "Saved", startFailed: "Start failed", checkFailed: "Check failed", installOk: "Installed", installFail: "Install failed", stopConfirm: "Stop dsh web?" }
 };
 let LANG = localStorage.getItem("dpm-lang") || "zh";
 const t = (k) => (I18N[LANG] || I18N.zh)[k] ?? k;
-function setLang(l) { LANG = l; localStorage.setItem("dpm-lang", l); renderList(); if (plugins.length) selectPlugin(plugins[0].id); }
+function setLang(l) {
+  LANG = l; localStorage.setItem("dpm-lang", l);
+  applyLabels();
+  renderList(); if (plugins.length) selectPlugin(plugins[0].id);
+}
+function emojiFor(id) {
+  return { pureBtn: "🧹 ", startBtn: "▶ ", stopBtn: "⏹ ", installBtn: "🔍 ", profileFilesBtn: "📄 " }[id] || "";
+}
 
 const invoke = window.__TAURI__?.core?.invoke || null;
 async function api(path, opts) {
@@ -100,8 +108,17 @@ async function loadProfiles() {
     const pl = document.getElementById("profileLabel");
     if (pl) pl.textContent = currentProfile;
     renderRail();
+    if (!data.profiles.length) {
+      document.getElementById("list").innerHTML = '<div class="empty">无 profile</div>';
+      document.getElementById("detail").innerHTML = '<div class="empty">未找到 profile（检查 ~/.dsh/profiles）</div>';
+      return;
+    }
     await loadPlugins();
-  } catch (e) { toast("加载失败: " + e.message); }
+  } catch (e) {
+    document.getElementById("list").innerHTML = '<div class="empty">—</div>';
+    document.getElementById("detail").innerHTML = '<div class="empty">加载失败</div>';
+    toast("加载失败: " + e.message);
+  }
 }
 function renderRail() {
   document.querySelectorAll("#profileItems .ri").forEach((el) => el.classList.toggle("active", el.title === currentProfile));
@@ -109,10 +126,21 @@ function renderRail() {
   document.getElementById("dshDot").title = dshRunning ? "dsh web 运行中" : "dsh web 未运行";
 }
 async function loadPlugins() {
-  const data = await api("/api/plugins?profile=" + encodeURIComponent(currentProfile));
-  plugins = data.plugins;
-  renderList();
-  if (plugins.length) selectPlugin(plugins[0].id); else document.getElementById("detail").innerHTML = '<div class="empty">' + t("none") + "</div>";
+  const listEl = document.getElementById("list");
+  const detailEl = document.getElementById("detail");
+  listEl.innerHTML = '<div class="empty muted">加载中…</div>';
+  try {
+    const data = await api("/api/plugins?profile=" + encodeURIComponent(currentProfile));
+    plugins = data.plugins;
+    renderList();
+    if (plugins.length) selectPlugin(plugins[0].id);
+    else detailEl.innerHTML = '<div class="empty">' + t("none") + "</div>";
+  } catch (e) {
+    plugins = [];
+    listEl.innerHTML = '<div class="empty">—</div>';
+    detailEl.innerHTML = '<div class="empty">' + (e.message || "加载失败") + "</div>";
+    toast("加载插件失败: " + (e.message || ""));
+  }
 }
 function renderList() {
   const list = document.getElementById("list");
@@ -256,9 +284,11 @@ async function reorderBundles(from, to) {
 }
 async function checkUpdates() {
   toast("检查中…");
-  const list = await api("/api/updates?profile=" + encodeURIComponent(currentProfile));
-  updates = {}; for (const u of list) if (u.hasUpdate) updates[u.id] = u;
-  renderList(); toast(Object.keys(updates).length ? Object.keys(updates).length + " 个有更新" : "全部最新");
+  try {
+    const list = await api("/api/updates?profile=" + encodeURIComponent(currentProfile));
+    updates = {}; for (const u of list) if (u.hasUpdate) updates[u.id] = u;
+    renderList(); toast(Object.keys(updates).length ? Object.keys(updates).length + " 个有更新" : "全部最新");
+  } catch (e) { toast("检查失败: " + (e.message || "")); }
 }
 async function refreshDshStatus() {
   try {
@@ -269,14 +299,13 @@ async function refreshDshStatus() {
     renderRail();
   } catch {}
 }
+
 async function stopDsh() {
-  if (!confirm("停止 dsh web?")) return;
+  if (!confirm(t("stopConfirm"))) return;
   const r = await api("/api/dsh-stop", { method: "POST" });
-  toast(r.ok ? "已停止 dsh web" : "停止失败");
+  toast(r.ok ? t("stopDsh") + " ✓" : t("startFailed"));
   setTimeout(refreshDshStatus, 1500);
 }
-async function startDsh() { const r = await api("/api/dsh-start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile }) }); toast(r.ok ? "已启动 dsh" : "启动失败"); setTimeout(refreshDshStatus, 2000); }
-async function stopDsh() { if (!confirm("停止 dsh web?")) return; const r = await api("/api/dsh-stop", { method: "POST" }); toast(r.ok ? "已停止" : "停止失败"); setTimeout(refreshDshStatus, 1500); }
 async function togglePure() {
   const btn = document.getElementById("pureBtn");
   const purge = btn.dataset.purged !== "1";
@@ -284,15 +313,22 @@ async function togglePure() {
   const r = await api("/api/purge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, purge }) });
   btn.dataset.purged = purge ? "1" : "0";
   btn.classList.toggle("pure-active", purge);
+  try { localStorage.setItem("dpm-pure-" + currentProfile, purge ? "1" : "0"); } catch {}
   toast((purge ? "纯净模式：" : "已恢复：") + r.affected + " 个插件" + (purge ? " 已禁用" : " 已启用"));
   await loadPlugins();
 }
 async function startDsh() {
   const portEl = document.getElementById("dshPort");
   const port = portEl ? parseInt(portEl.value, 10) : 3080;
-  const r = await api("/api/dsh-start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, port: port && port > 0 ? port : null }) });
-  toast(r.ok ? "已启动 dsh web（" + currentProfile + "，端口 " + (port || 3080) + "）" : "启动失败");
-  setTimeout(refreshDshStatus, 2000);
+  const btn = document.getElementById("startBtn");
+  if (btn) { btn.disabled = true; btn.textContent = emojiFor("startBtn") + t("loading"); }
+  try {
+    const r = await api("/api/dsh-start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, port: port && port > 0 ? port : null }) });
+    toast(r.ok ? "dsh web ✓（" + currentProfile + "，端口 " + (port || 3080) + "）" : t("startFailed"));
+    setTimeout(refreshDshStatus, 2000);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = emojiFor("startBtn") + t("startDsh"); }
+  }
 }
 function toggleTheme() { document.documentElement.classList.toggle("light"); }
 function openSearch() {
@@ -328,9 +364,28 @@ function openSearch() {
 }
 // header quick actions (start/stop dsh kept minimal — dsh is usually managed by the user's own workflow)
 document.querySelector(".logo").title = "DSH Plugin Manager";
-loadProfiles();
+function applyLabels() {
+  const ids = { pureBtn: "pure", startBtn: "startDsh", stopBtn: "stopDsh", installBtn: "installPlugin", profileFilesBtn: "profileFiles" };
+  for (const [id, key] of Object.entries(ids)) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = emojiFor(id) + t(key);
+  }
+  const lb = document.getElementById("langBtn");
+  if (lb) lb.textContent = LANG === "zh" ? "EN" : "中";
+}
+function applyPureState() {
+  const btn = document.getElementById("pureBtn");
+  if (!btn || !currentProfile) return;
+  let v = "0";
+  try { v = localStorage.getItem("dpm-pure-" + currentProfile) || "0"; } catch {}
+  btn.dataset.purged = v;
+  btn.classList.toggle("pure-active", v === "1");
+}
+applyLabels();
+loadProfiles().then(applyPureState);
 refreshDshStatus();
 setInterval(refreshDshStatus, 10000);
+setInterval(applyPureState, 1000);
 </script>
 </body>
 </html>

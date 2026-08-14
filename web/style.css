@@ -75,6 +75,7 @@ header .spacer { flex: 1; }
 .badge.on { background: rgba(63,185,80,.12); color: var(--ok); }
 .badge.off { background: rgba(106,116,132,.12); color: var(--muted); }
 .empty { color: var(--dim); padding: 40px; text-align: center; }
+.muted { color: var(--muted); font-size: 12px; }
 .toast { position: fixed; bottom: 16px; right: 16px; background: var(--panel); border: 1px solid var(--line2); padding: 9px 14px; border-radius: var(--radius); font-size: 12.5px; display: none; z-index: 50; }
 .modal-mask { position: fixed; inset: 0; background: rgba(8,10,13,.55); display: flex; align-items: center; justify-content: center; z-index: 40; }
 .modal { background: var(--panel); border: 1px solid var(--line2); border-radius: 10px; width: 540px; max-height: 70vh; display: flex; flex-direction: column; overflow: hidden; }
