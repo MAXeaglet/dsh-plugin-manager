@@ -25,6 +25,22 @@ npm install              # tauri cli
 npx tauri dev            # run the desktop app (Rust backend + web frontend)
 ```
 
+## Cross-platform
+
+Works on Windows / macOS / Linux. Build per platform:
+
+```bash
+# macOS (requires Xcode Command Line Tools + rustup)
+rustup toolchain list                        # ensure a native toolchain is default
+npx tauri build                              # -> target/release/bundle/macos/*.app or .dmg
+
+# Linux (requires webkit2gtk etc. system libs)
+npx tauri build
+```
+
+On Windows prefer the MSVC toolchain when linking Tauri (`cargo +stable-x86_64-pc-windows-msvc build`)
+— the GNU/mingw linker can fail with `export ordinal too large`.
+
 ## Build
 
 ```bash

@@ -427,11 +427,30 @@ fn import_profile(profile: String, bundles: Option<Vec<String>>, patch: Option<J
     Ok(serde_json::json!({ "profile": profile, "imported": true }))
 }
 
+#[tauri::command]
+fn open_plugin_repo(app: tauri::AppHandle, profile: String, name: String) -> Json {
+    let url = bundle_package(&profile, &name).and_then(|p| {
+        p.get("repository").and_then(|r| {
+            r.get("url").and_then(|u| u.as_str()).map(|s| s.to_string())
+                .or_else(|| r.as_str().map(|s| s.to_string()))
+        })
+    });
+    match url {
+        Some(u) => {
+            use tauri_plugin_opener::OpenerExt;
+            let _ = app.opener().open_url(u.clone(), None::<String>);
+            serde_json::json!({ "ok": true, "url": u })
+        }
+        None => serde_json::json!({ "ok": false, "error": "no repository" }),
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             list_profiles, list_plugins, set_plugin_disabled, set_bundle, set_bundle_order, export_profile, install_plugin,
-            dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config, search_npm, import_profile
+            dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config, search_npm, import_profile, open_plugin_repo
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

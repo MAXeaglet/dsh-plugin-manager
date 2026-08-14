@@ -143,6 +143,7 @@ async function api(path, opts) {
       case "/api/config": return await invoke("set_plugin_config", body);
       case "/api/search": return await invoke("search_npm", { query: qs.get("q") || "" });
       case "/api/import": return await invoke("import_profile", body);
+      case "/api/open-repo": return await invoke("open_plugin_repo", body);
     }
     throw new Error("unknown api " + name);
   }
@@ -285,6 +286,10 @@ async function selectPlugin(id) {
     actions.appendChild(b);
   }
   if (p.kind === "bundle") {
+    const repo = document.createElement("button");
+    repo.textContent = "GitHub";
+    repo.onclick = async () => { const r = await api("/api/open-repo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name: p.name }) }); if (!r.ok) toast(r.error || "no repo"); };
+    actions.appendChild(repo);
     const r = document.createElement("button");
     r.textContent = t("removeBundle");
     r.onclick = async () => { await api("/api/bundle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name: p.name, enabled: false }) }); toast("bundle " + p.name + " " + t("removeBundle")); await loadPlugins(); };
