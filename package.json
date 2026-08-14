@@ -1,0 +1,25 @@
+{
+  "name": "dsh-plugin-manager",
+  "version": "0.1.0",
+  "description": "A GUI to manage DSH plugins across profiles — inspired by cc-switch: list, enable/disable, install, and inspect plugins in your DSH profiles.",
+  "type": "module",
+  "main": "lib/server.mjs",
+  "bin": {
+    "dsh-plugin-manager": "lib/cli.mjs"
+  },
+  "license": "MIT",
+  "scripts": {
+    "start": "node lib/server.mjs",
+    "test": "node test/api.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "lib",
+    "web"
+  ],
+  "dependencies": {
+    "yaml": "^2.9.0"
+  }
+}
