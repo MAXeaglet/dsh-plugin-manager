@@ -95,7 +95,7 @@ async function api(path, opts) {
   return data;
 }
 
-let currentProfile = null, plugins = [], updates = {}, dshRunning = false;
+let currentProfile = null, plugins = [], updates = {}, dshRunning = false, selectedId = null;
 
 function toast(msg, type) {
   const el = document.getElementById("toast");
@@ -136,7 +136,7 @@ async function loadProfiles() {
     for (const p of data.profiles) {
       const it = document.createElement("div");
       it.className = "ri"; it.textContent = p.charAt(0).toUpperCase(); it.title = p;
-      it.onclick = () => { currentProfile = p; renderRail(); loadPlugins(); };
+      it.onclick = () => { currentProfile = p; selectedId = null; renderRail(); loadPlugins(); };
       box.appendChild(it);
     }
     if (!currentProfile) currentProfile = data.current || data.profiles[0];
@@ -168,7 +168,8 @@ async function loadPlugins() {
     const data = await api("/api/plugins?profile=" + encodeURIComponent(currentProfile));
     plugins = data.plugins;
     renderList();
-    if (plugins.length) selectPlugin(plugins[0].id);
+    const keep = plugins.find((p) => p.id === selectedId);
+    if (plugins.length) selectPlugin(keep ? keep.id : plugins[0].id);
     else detailEl.innerHTML = '<div class="empty">' + t("none") + "</div>";
   } catch (e) {
     plugins = [];
@@ -212,6 +213,7 @@ function renderList() {
 function selectPlugin(id) {
   const p = plugins.find((x) => x.id === id);
   if (!p) return;
+  selectedId = id;
   document.querySelectorAll(".pl").forEach((r) => r.classList.toggle("active", r.dataset.id === id));
   const d = document.getElementById("detail");
   d.innerHTML = "";
