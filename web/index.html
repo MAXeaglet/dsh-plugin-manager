@@ -6,43 +6,74 @@
 <title>DSH Plugin Manager</title>
 <style>
   :root {
-    --bg: #0f1115; --panel: #161a22; --panel2: #1c222e; --line: #2a3140;
-    --text: #e6e9f0; --muted: #8b93a5; --accent: #4f8cff; --ok: #34c759;
-    --warn: #ff9f0a; --danger: #ff453a;
+    --dsw-alias-bg-base: #0d0f12;
+    --dsw-alias-bg-layer-1: #14171d;
+    --dsw-alias-bg-layer-2: #1b2029;
+    --dsw-alias-bg-overlay: rgba(10,12,15,.72);
+    --dsw-alias-border-l1: #232936;
+    --dsw-alias-border-l2: #2c3444;
+    --dsw-alias-brand-primary: #4c8dff;
+    --dsw-alias-label-primary: #e8eaef;
+    --dsw-alias-label-secondary: #9aa3b2;
+    --dsw-alias-label-tertiary: #6b7484;
+    --dsw-alias-state-success-primary: #34c759;
+    --dsw-alias-state-warn-primary: #ff9f0a;
+    --dsw-alias-state-error-primary: #ff453a;
+    --dsw-alias-interactive-bg-hover: rgba(255,255,255,.06);
+    --dsw-alias-interactive-bg-active: rgba(255,255,255,.1);
+    --dsw-alias-bg-module-platform: #222836;
+    --dsw-alias-focus-ring: rgba(76,141,255,.35);
+    --dsw-radius-md: 8px; --dsw-radius-lg: 12px; --dsw-radius-pill: 999px;
+    --dsw-space-1: 4px; --dsw-space-2: 8px; --dsw-space-3: 12px; --dsw-space-4: 16px;
+    --dsw-font: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --dsw-font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  :root.light {
+    --dsw-alias-bg-base: #f6f7f9; --dsw-alias-bg-layer-1: #ffffff; --dsw-alias-bg-layer-2: #f0f2f6;
+    --dsw-alias-border-l1: #e2e5eb; --dsw-alias-border-l2: #d5dae3;
+    --dsw-alias-label-primary: #1c2129; --dsw-alias-label-secondary: #5a6372; --dsw-alias-label-tertiary: #8a93a3;
+    --dsw-alias-interactive-bg-hover: rgba(0,0,0,.05); --dsw-alias-bg-module-platform: #e8ebf1;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  :root.light { --bg: #f5f6f8; --panel: #ffffff; --panel2: #eef0f4; --line: #d9dce3; --text: #1c2129; --muted: #6b7280; }
-  body { background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; height: 100vh; display: flex; flex-direction: column; }
-  header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
-  header h1 { font-size: 16px; font-weight: 600; }
+  body { background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: 14px/1.5 var(--dsw-font); height: 100vh; display: flex; overflow: hidden; }
+  /* DSH-style rail sidebar */
+  .rail { width: 64px; background: var(--dsw-alias-bg-layer-1); border-right: 1px solid var(--dsw-alias-border-l1); display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 6px; flex: none; }
+  .rail .logo { font-size: 22px; margin-bottom: 10px; }
+  .rail .rail-item { width: 44px; height: 44px; border-radius: var(--dsw-radius-lg); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--dsw-alias-label-secondary); font-size: 16px; }
+  .rail .rail-item:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .rail .rail-item.active { background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-brand-primary); }
+  .rail .spacer { flex: 1; }
+  /* main area */
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  header { display: flex; align-items: center; gap: var(--dsw-space-2); padding: var(--dsw-space-3) var(--dsw-space-4); background: var(--dsw-alias-bg-layer-1); border-bottom: 1px solid var(--dsw-alias-border-l1); }
+  header h1 { font-size: 15px; font-weight: 600; margin-right: var(--dsw-space-2); }
   header .spacer { flex: 1; }
-  select, input, button { font: inherit; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
-  button { cursor: pointer; }
-  button:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .main { flex: 1; display: flex; min-height: 0; }
-  .list { width: 320px; border-right: 1px solid var(--line); overflow-y: auto; background: var(--panel); }
-  .list-item { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
-  .list-item:hover { background: var(--panel2); }
-  .list-item.active { background: var(--panel2); border-left: 3px solid var(--accent); }
+  .panel { display: flex; flex: 1; min-height: 0; }
+  .list { width: 300px; border-right: 1px solid var(--dsw-alias-border-l1); overflow-y: auto; background: var(--dsw-alias-bg-layer-1); }
+  .list-item { display: flex; align-items: center; gap: var(--dsw-space-2); padding: var(--dsw-space-3) var(--dsw-space-4); border-bottom: 1px solid var(--dsw-alias-border-l1); cursor: pointer; }
+  .list-item:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .list-item.active { background: var(--dsw-alias-interactive-bg-active); box-shadow: inset 2px 0 0 var(--dsw-alias-brand-primary); }
   .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-  .dot.on { background: var(--ok); }
-  .dot.off { background: var(--muted); }
-  .dot.install { background: var(--warn); }
+  .dot.on { background: var(--dsw-alias-state-success-primary); }
+  .dot.off { background: var(--dsw-alias-label-tertiary); }
   .list-item .id { font-weight: 500; }
-  .list-item .meta { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .list-item .src { font-size: 10px; padding: 1px 6px; border-radius: 6px; background: var(--panel2); color: var(--muted); flex: none; }
-  .detail { flex: 1; padding: 20px 24px; overflow-y: auto; }
-  .detail h2 { font-size: 18px; margin-bottom: 4px; }
-  .detail .sub { color: var(--muted); margin-bottom: 16px; }
-  .kv { display: grid; grid-template-columns: 110px 1fr; gap: 8px 12px; margin-bottom: 16px; }
-  .kv dt { color: var(--muted); }
+  .list-item .meta { font-size: 12px; color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .list-item .src { font-size: 10px; padding: 1px 6px; border-radius: 6px; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); flex: none; }
+  .detail { flex: 1; padding: var(--dsw-space-4) var(--dsw-space-5,20px); overflow-y: auto; }
+  .detail h2 { font-size: 17px; margin-bottom: 4px; }
+  .detail .sub { color: var(--dsw-alias-label-secondary); margin-bottom: var(--dsw-space-4); }
+  .kv { display: grid; grid-template-columns: 110px 1fr; gap: var(--dsw-space-2) var(--dsw-space-3); margin-bottom: var(--dsw-space-4); }
+  .kv dt { color: var(--dsw-alias-label-tertiary); }
   .kv dd { word-break: break-all; }
-  .actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-  .empty { color: var(--muted); padding: 40px; text-align: center; }
-  .list-item.dragging { opacity: 0.5; }
-  .list-item.drag-over { border-top: 2px solid var(--accent); }
-  .toast { position: fixed; bottom: 20px; right: 20px; background: var(--panel2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 8px; display: none; }
+  .actions { display: flex; gap: var(--dsw-space-2); margin-top: var(--dsw-space-2); flex-wrap: wrap; }
+  select, input, textarea, button { font: inherit; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); padding: 6px 10px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--dsw-alias-brand-primary); }
+  button.primary { background: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); color: #fff; }
+  .empty { color: var(--dsw-alias-label-tertiary); padding: 40px; text-align: center; }
+  .list-item.dragging { opacity: .5; }
+  .list-item.drag-over { border-top: 2px solid var(--dsw-alias-brand-primary); }
+  textarea { font-family: var(--dsw-font-mono); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -162,24 +193,35 @@ function toast(msg) {
 async function loadProfiles() {
   try {
     const data = await api("/api/profiles");
-    const sel = document.getElementById("profile");
-    sel.innerHTML = "";
+    const box = document.getElementById("profileItems");
+    box.innerHTML = "";
     for (const p of data.profiles) {
-      const opt = document.createElement("option");
-      opt.value = p; opt.textContent = p;
-      sel.appendChild(opt);
+      const item = document.createElement("div");
+      item.className = "rail-item" + (p === (data.current || p) && !currentProfile ? " active" : "");
+      item.textContent = p.charAt(0).toUpperCase();
+      item.title = p;
+      item.onclick = () => { currentProfile = p; renderRail(); loadPlugins(); };
+      if (p === currentProfile) item.classList.add("active");
+      box.appendChild(item);
     }
-    if (data.current) sel.value = data.current;
-    currentProfile = sel.value;
+    if (!currentProfile) currentProfile = data.current || data.profiles[0];
+    renderRail();
     await loadPlugins();
   } catch (e) { toast(t("toastFail") + ": " + e.message); }
+}
+function renderRail() {
+  document.querySelectorAll("#profileItems .rail-item").forEach((el) => {
+    const name = el.title;
+    el.classList.toggle("active", name === currentProfile);
+  });
+  const st = document.getElementById("dshStatusItem");
+  if (st) st.style.color = dshRunning ? "var(--dsw-alias-state-success-primary)" : "var(--dsw-alias-label-tertiary)";
 }
 async function refreshDshStatus() {
   try {
     const s = await api("/api/dsh-status");
-    const el = document.getElementById("dshStatus");
-    el.className = "dot " + (s.running ? "on" : "off");
-    el.title = s.running ? t("running") + " (port " + s.port + ")" : t("stopped");
+    dshRunning = s.running;
+    renderRail();
   } catch {}
 }
 async function startDsh() {
@@ -209,7 +251,6 @@ async function saveConfig(id) {
   } catch (e) { toast(t("saveFail") + ": " + e.message); }
 }
 async function loadPlugins() {
-  currentProfile = document.getElementById("profile").value;
   const data = await api("/api/plugins?profile=" + encodeURIComponent(currentProfile));
   plugins = data.plugins;
   renderList();
@@ -429,7 +470,7 @@ async function installPlugin() {
     await loadPlugins();
   } catch (e) { toast("安装失败: " + e.message); }
 }
-document.getElementById("profile").addEventListener("change", () => { loadPlugins(); refreshDshStatus(); });
+let dshRunning = false;
 loadProfiles();
 refreshDshStatus();
 setInterval(refreshDshStatus, 10000);
