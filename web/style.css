@@ -2,24 +2,33 @@
    Derived from DSH's actual surface grammar (settings rows, capsule buttons,
    dark palette): no gradients, no shadows, hairline separators, 1 accent. */
 :root {
-  --bg: #0f1317;          /* dsw-alias-bg-base-ish */
-  --panel: #151a21;       /* layer-1 */
-  --panel2: #1a2028;      /* layer-2 */
-  --line: #242b35;        /* border-l1 */
-  --line2: #2e3743;       /* border-l2 */
-  --text: #e8ecf1;        /* label-primary */
-  --muted: #97a1b0;       /* label-secondary */
-  --dim: #6a7484;         /* label-tertiary */
-  --accent: #4c8dff;      /* brand */
+  /* DSH official tokens (dsw-static-*): neutral-bluish scale + deepseek brand */
+  --bg: rgb(15, 17, 21);        /* neutral-bluish-1000 */
+  --panel: rgb(35, 35, 36);     /* layer-1 = 875 */
+  --panel2: rgb(44, 44, 46);    /* layer-2 = 850 */
+  --panel3: rgb(53, 54, 56);    /* layer-3 = 800 */
+  --line: rgba(255, 255, 255, .06);   /* border-l1 */
+  --line2: rgba(255, 255, 255, .12);  /* border-l2 */
+  --text: rgb(233, 237, 241);   /* label-primary */
+  --muted: rgb(151, 157, 166);  /* label-secondary = 500 */
+  --dim: rgb(129, 133, 140);    /* label-tertiary = 600 */
+  --accent: rgb(86, 134, 254);  /* deepseek-450 brand */
   --ok: #3fb950; --warn: #d29922; --danger: #f85149;
-  --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
-  --sans: "SF Pro Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  --radius: 6px;
+  --mono: "SF Mono", "JetBrains Mono", "Fira Code", Consolas, "Liberation Mono", Menlo, Courier, "PingFang SC", "Microsoft YaHei";
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --radius: 10px;               /* dsl-web-radius-ish */
+  --ease: cubic-bezier(.4, 0, .2, 1);
 }
 :root.light {
-  --bg: #f5f6f8; --panel: #ffffff; --panel2: #f0f2f5;
-  --line: #e3e6ea; --line2: #d3d8df;
-  --text: #1b2027; --muted: #5a6472; --dim: #8b94a3;
+  --bg: rgb(249, 250, 251);     /* neutral-bluish-50 */
+  --panel: #ffffff;
+  --panel2: rgb(245, 246, 247); /* 60 */
+  --panel3: rgb(235, 238, 242); /* 100 */
+  --line: rgba(0, 0, 0, .04);   /* border-l1 light */
+  --line2: rgba(0, 0, 0, .1);   /* border-l2 light */
+  --text: rgb(21, 21, 23);
+  --muted: rgb(129, 133, 140);
+  --dim: rgb(151, 157, 166);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -101,3 +110,25 @@ header .spacer { flex: 1; }
 .confirm-msg { font-size: 13px; line-height: 1.6; color: var(--text); margin-bottom: 16px; word-break: break-word; }
 .confirm-acts { display: flex; justify-content: flex-end; gap: 8px; }
 .confirm-acts .btn { min-width: 72px; }
+
+/* DSH scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.22); }
+:root.light ::-webkit-scrollbar-thumb { background: rgba(0,0,0,.14); }
+:root.light ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.22); }
+
+/* motion layer (MOTION_INTENSITY 2: only state transitions, no decorative anim) */
+.btn, .pl, .rail .ri, .modal .mi { transition: background-color .15s var(--ease), border-color .15s var(--ease), color .15s var(--ease); }
+
+/* rail logo: geometric mark instead of emoji */
+.rail .logo { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), rgb(103,158,254)); color: #fff; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-weight: 700; font-size: 13px; margin-bottom: 12px; }
+
+/* header typography: monospace app name, tighter rhythm */
+header h1 { font-family: var(--mono); font-size: 12.5px; font-weight: 600; letter-spacing: .01em; margin-right: 8px; }
+
+/* list rows: hover lift, active accent bar */
+.pl { border-bottom: 1px solid var(--line); }
+.pl:hover { background: var(--panel2); }
+.pl.active { background: var(--panel2); box-shadow: inset 2px 0 0 var(--accent); }
