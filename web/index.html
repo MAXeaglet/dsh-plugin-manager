@@ -25,7 +25,7 @@
     <span class="hsep"></span>
     <button class="btn primary" onclick="startDsh()" id="startBtn" title="启动 dsh web">▶ 启动 dsh</button>
     <button class="btn" onclick="stopDsh()" id="stopBtn" title="停止 dsh web">⏹ 停止</button>
-    <button class="btn" onclick="openSearch()" id="installBtn" title="搜索并安装插件">🔍 装插件</button>
+    <button class="btn" onclick="openSearch()" id="installBtn" title="打开 dshbase.com 插件市场">🔍 装插件</button>
     <button class="btn sm" onclick="checkUpdates()" title="检查更新" aria-label="check updates"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A5.5 5.5 0 1 1 2 10"/><path d="M2 3v3.5h3.5"/></svg></button>
     <button class="btn sm" onclick="toggleTheme()" id="themeBtn" title="主题" aria-label="theme"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1"/></svg></button>
     <button class="btn sm" onclick="setLang(LANG==='zh'?'en':'zh')" id="langBtn">EN</button>
@@ -44,8 +44,8 @@
 <div class="toast" id="toast"></div>
 <script>
 const I18N = {
-  zh: { enabled: "已启用", disabled: "已禁用", source: "来源", name: "名称", version: "版本", status: "状态", compat: "兼容", config: "config", enable: "启用", disable: "禁用", removeBundle: "移除", saveConfig: "保存 config", configPh: "插件 config（JSON，留空表示无）", empty: "选择插件查看详情", none: "无插件", running: "dsh web 运行中", stopped: "dsh web 未运行", readme: "README", profileFiles: "配置文件", pure: "纯净模式", startDsh: "启动 dsh", stopDsh: "停止", installPlugin: "装插件", save: "保存", search: "搜索", install: "安装", pureAskOn: "纯净模式：禁用所有第三方插件（保留 @deepseek-ai 官方）？", pureAskOff: "退出纯净模式：重新启用所有第三方插件？", pureOn: "纯净模式", pureOff: "已恢复", loading: "加载中…", noProfiles: "无 profile", noProfileHint: "未找到 profile（检查 ~/.dsh/profiles）", loadFailed: "加载失败", searchPh: "搜索 npm DSH 插件…", searching: "搜索中…", noResult: "无结果", saved: "已保存", startFailed: "启动失败", checkFailed: "检查失败", installOk: "已安装", installFail: "安装失败", stopConfirm: "停止 dsh web?" },
-  en: { enabled: "enabled", disabled: "disabled", source: "Source", name: "Name", version: "Version", status: "Status", compat: "Compat", config: "config", enable: "Enable", disable: "Disable", removeBundle: "Remove", saveConfig: "Save config", configPh: "Plugin config (JSON, empty = none)", empty: "Select a plugin", none: "No plugins", running: "dsh web running", stopped: "dsh web stopped", readme: "README", profileFiles: "Profile files", pure: "Pure mode", startDsh: "Start dsh", stopDsh: "Stop", installPlugin: "Install", save: "Save", search: "Search", install: "Install", pureAskOn: "Pure mode: disable all third-party plugins (keep @deepseek-ai official)?", pureAskOff: "Exit pure mode: re-enable all third-party plugins?", pureOn: "Pure mode", pureOff: "Restored", loading: "Loading…", noProfiles: "No profiles", noProfileHint: "No profiles found (check ~/.dsh/profiles)", loadFailed: "Load failed", searchPh: "Search npm DSH plugins…", searching: "Searching…", noResult: "No results", saved: "Saved", startFailed: "Start failed", checkFailed: "Check failed", installOk: "Installed", installFail: "Install failed", stopConfirm: "Stop dsh web?" }
+  zh: { enabled: "已启用", disabled: "已禁用", source: "来源", name: "名称", version: "版本", status: "状态", compat: "兼容", config: "config", enable: "启用", disable: "禁用", removeBundle: "移除", saveConfig: "保存 config", configPh: "插件 config（JSON，留空表示无）", empty: "选择插件查看详情", none: "无插件", running: "dsh web 运行中", stopped: "dsh web 未运行", readme: "README", profileFiles: "配置文件", pure: "纯净模式", startDsh: "启动 dsh", stopDsh: "停止", installPlugin: "插件市场", save: "保存", search: "搜索", install: "安装", pureAskOn: "纯净模式：禁用所有第三方插件（保留 @deepseek-ai 官方）？", pureAskOff: "退出纯净模式：重新启用所有第三方插件？", pureOn: "纯净模式", pureOff: "已恢复", loading: "加载中…", noProfiles: "无 profile", noProfileHint: "未找到 profile（检查 ~/.dsh/profiles）", loadFailed: "加载失败", saved: "已保存", startFailed: "启动失败", checkFailed: "检查失败", installOk: "已安装", installFail: "安装失败", stopConfirm: "停止 dsh web?" },
+  en: { enabled: "enabled", disabled: "disabled", source: "Source", name: "Name", version: "Version", status: "Status", compat: "Compat", config: "config", enable: "Enable", disable: "Disable", removeBundle: "Remove", saveConfig: "Save config", configPh: "Plugin config (JSON, empty = none)", empty: "Select a plugin", none: "No plugins", running: "dsh web running", stopped: "dsh web stopped", readme: "README", profileFiles: "Profile files", pure: "Pure mode", startDsh: "Start dsh", stopDsh: "Stop", installPlugin: "Plugin site", save: "Save", search: "Search", install: "Install", pureAskOn: "Pure mode: disable all third-party plugins (keep @deepseek-ai official)?", pureAskOff: "Exit pure mode: re-enable all third-party plugins?", pureOn: "Pure mode", pureOff: "Restored", loading: "Loading…", noProfiles: "No profiles", noProfileHint: "No profiles found (check ~/.dsh/profiles)", loadFailed: "Load failed", saved: "Saved", startFailed: "Start failed", checkFailed: "Check failed", installOk: "Installed", installFail: "Install failed", stopConfirm: "Stop dsh web?" }
 };
 let LANG = localStorage.getItem("dpm-lang") || "zh";
 const t = (k) => (I18N[LANG] || I18N.zh)[k] ?? k;
@@ -82,6 +82,7 @@ async function api(path, opts) {
       case "/api/search": return await invoke("search_npm", { query: qs.get("q") || "" });
       case "/api/import": return await invoke("import_profile", body);
       case "/api/open-repo": return await invoke("open_plugin_repo", body);
+      case "/api/open-dshbase": return await invoke("open_dshbase");
       case "/api/updates": return await invoke("check_updates", { profile: qs.get("profile") });
       case "/api/purge": return await invoke("purge_third_party", body);
       case "/api/readme": return await invoke("read_plugin_readme", { profile: qs.get("profile"), name: qs.get("name") });
@@ -464,44 +465,14 @@ async function startDsh() {
 }
 function toggleTheme() { document.documentElement.classList.toggle("light"); }
 function openSearch() {
-  const mask = document.createElement("div"); mask.className = "modal-mask";
-  const modal = document.createElement("div"); modal.className = "modal";
-  const head = document.createElement("div"); head.className = "mh";
-  const input = document.createElement("input"); input.placeholder = "搜索 npm DSH 插件…";
-  const go = document.createElement("button"); go.className = "btn primary"; go.textContent = "搜索";
-  const close = document.createElement("button"); close.className = "btn"; close.textContent = "✕";
-  close.onclick = () => mask.remove();
-  head.append(input, go, close);
-  const res = document.createElement("div"); res.className = "mr";
-  go.onclick = async () => {
-    res.innerHTML = '<div class="empty">搜索中…</div>';
-    try {
-      const list = await api("/api/search?q=" + encodeURIComponent(input.value));
-      if (!Array.isArray(list)) { res.innerHTML = '<div class="empty">' + (list.error || "无结果") + "</div>"; return; }
-      res.innerHTML = "";
-      for (const p of list.slice(0, 30)) {
-        const row = document.createElement("div"); row.className = "mi";
-        const info = document.createElement("div"); info.className = "info";
-        info.innerHTML = "<b>" + (p.name || "") + "</b> <span style='color:var(--dim)'>" + (p.version || "") + "</span><small>" + (p.description || "") + "</small>";
-        const btn = document.createElement("button"); btn.className = "btn sm primary"; btn.textContent = "安装";
-        btn.onclick = async () => {
-  btn.disabled = true;
-  try {
-    const r = await api("/api/install", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, package: p.name }) });
-    toast(r.ok ? "已安装 " + p.name : "安装失败: " + (r.error || ""), r.ok ? "ok" : "err");
-    if (r.ok) await loadPlugins();
-  } catch (e) { toast("安装失败: " + (e.message || ""), "err"); }
-  btn.disabled = false;
+  // open the DSH plugin site in the default browser
+  if (invoke) {
+    api("/api/open-dshbase").then((r) => toast(r.ok ? "已打开 dshbase.com" : "打开失败: " + (r.error || ""), r.ok ? "ok" : "err"));
+  } else {
+    // webui fallback: open via shell
+    api("/api/open-dshbase", { method: "POST" }).then((r) => toast(r.ok ? "已打开 dshbase.com" : "打开失败: " + (r.error || ""), r.ok ? "ok" : "err"));
+  }
 };
-        row.append(info, btn); res.appendChild(row);
-      }
-    } catch (e) { res.innerHTML = '<div class="empty">' + e.message + "</div>"; }
-  };
-  input.addEventListener("keydown", (e) => { if (e.key === "Enter") go.click(); });
-  modal.append(head, res); mask.appendChild(modal);
-  mask.onclick = (e) => { if (e.target === mask) mask.remove(); };
-  document.body.appendChild(mask); input.focus();
-}
 // header quick actions (start/stop dsh kept minimal — dsh is usually managed by the user's own workflow)
 document.querySelector(".logo").title = "DSH Plugin Manager";
 function applyLabels() {

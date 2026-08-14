@@ -576,6 +576,17 @@ fn open_plugin_repo(app: tauri::AppHandle, profile: String, name: String) -> Jso
     }
 }
 
+#[tauri::command]
+fn open_dshbase(app: tauri::AppHandle) -> Json {
+    use tauri_plugin_opener::OpenerExt;
+    let url = "https://dshbase.com";
+    let result = app.opener().open_url(url.to_string(), None::<String>);
+    match result {
+        Ok(_) => serde_json::json!({ "ok": true, "url": url }),
+        Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),
+    }
+}
+
 fn npm_latest(name: &str) -> Option<String> {
     let out = Command::new("npm").args(["view", name, "version"]).output().ok()?;
     if out.status.success() {
@@ -766,7 +777,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_profiles, list_plugins, set_plugin_disabled, set_bundle, set_bundle_order, export_profile, install_plugin,
             dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config, search_npm, import_profile, open_plugin_repo, check_updates, purge_third_party,
-            read_plugin_readme, read_profile_files, write_profile_files
+            read_plugin_readme, read_profile_files, write_profile_files, open_dshbase
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
