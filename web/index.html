@@ -11,6 +11,7 @@
     --warn: #ff9f0a; --danger: #ff453a;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root.light { --bg: #f5f6f8; --panel: #ffffff; --panel2: #eef0f4; --line: #d9dce3; --text: #1c2129; --muted: #6b7280; }
   body { background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; height: 100vh; display: flex; flex-direction: column; }
   header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
   header h1 { font-size: 16px; font-weight: 600; }
@@ -39,6 +40,8 @@
   .kv dd { word-break: break-all; }
   .actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
   .empty { color: var(--muted); padding: 40px; text-align: center; }
+  .list-item.dragging { opacity: 0.5; }
+  .list-item.drag-over { border-top: 2px solid var(--accent); }
   .toast { position: fixed; bottom: 20px; right: 20px; background: var(--panel2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 8px; display: none; }
 </style>
 </head>
@@ -49,7 +52,10 @@
   <select id="profile"></select>
   <button onclick="loadProfiles()">刷新</button>
   <div class="spacer"></div>
-  <input id="installInput" placeholder="npm 包名…" style="width: 240px">
+  <input id="searchInput" placeholder="搜索…" style="width: 140px" oninput="renderList()">
+  <button onclick="exportProfile()">导出</button>
+  <button onclick="toggleTheme()" id="themeBtn">🌙</button>
+  <input id="installInput" placeholder="npm 包名…" style="width: 200px">
   <button class="primary" onclick="installPlugin()">安装</button>
 </header>
 <div class="main">
@@ -61,7 +67,24 @@
 let currentProfile = null;
 let plugins = [];
 
+// Desktop mode: call Tauri commands; fallback to HTTP when running as webui.
+const invoke = window.__TAURI__?.core?.invoke || null;
 async function api(path, opts) {
+  if (invoke) {
+    const [name, query] = path.split("?");
+    const qs = new URLSearchParams(query || "");
+    const body = opts && opts.body ? JSON.parse(opts.body) : {};
+    switch (name) {
+      case "/api/profiles": { const p = await invoke("list_profiles"); return { profiles: p, current: p[0] || null }; }
+      case "/api/plugins": return await invoke("list_plugins", { profile: qs.get("profile") }).then((p) => ({ profile: qs.get("profile"), plugins: p }));
+      case "/api/export": return await invoke("export_profile", { profile: qs.get("profile") });
+      case "/api/toggle": return await invoke("set_plugin_disabled", body);
+      case "/api/bundle": return await invoke("set_bundle", body);
+      case "/api/reorder": return await invoke("set_bundle_order", body);
+      case "/api/install": return await invoke("install_plugin", body);
+    }
+    throw new Error("unknown api " + name);
+  }
   const res = await fetch(path, opts);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || res.status);
@@ -97,11 +120,18 @@ async function loadPlugins() {
 function renderList() {
   const list = document.getElementById("list");
   list.innerHTML = "";
-  for (const p of plugins) {
+  const q = (document.getElementById("searchInput").value || "").toLowerCase();
+  const filtered = q ? plugins.filter((p) => (p.id + " " + (p.name || "") + " " + (p.description || "")).toLowerCase().includes(q)) : plugins;
+  for (const p of filtered) {
     const row = document.createElement("div");
     row.className = "list-item" + (document.querySelector(".list-item.active")?.dataset?.id === p.id ? " active" : "");
     row.dataset.id = p.id;
+    row.draggable = p.kind === "bundle";
     row.onclick = () => selectPlugin(p.id);
+    row.ondragstart = (e) => { e.dataTransfer.setData("text/plain", p.name); row.classList.add("dragging"); };
+    row.ondragover = (e) => { if (p.kind === "bundle") { e.preventDefault(); row.classList.add("drag-over"); } };
+    row.ondragleave = () => row.classList.remove("drag-over");
+    row.ondrop = (e) => { e.preventDefault(); row.classList.remove("drag-over"); reorderBundles(e.dataTransfer.getData("text/plain"), p.name); };
     const dot = document.createElement("span");
     dot.className = "dot " + (p.disabled ? "off" : p.kind === "bundle" ? "on" : "on");
     const id = document.createElement("span");
@@ -159,6 +189,34 @@ async function selectPlugin(id) {
     actions.appendChild(r);
   }
   d.appendChild(actions);
+}
+async function reorderBundles(from, to) {
+  if (!from || !to || from === to) return;
+  const names = plugins.filter((p) => p.kind === "bundle").map((p) => p.name);
+  const i = names.indexOf(from), j = names.indexOf(to);
+  if (i < 0 || j < 0) return;
+  names.splice(i, 1); names.splice(j, 0, from);
+  try {
+    await api("/api/reorder", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, bundles: names }) });
+    toast("bundle 顺序已更新");
+    await loadPlugins();
+  } catch (e) { toast("排序失败: " + e.message); }
+}
+async function exportProfile() {
+  try {
+    const data = await api("/api/export?profile=" + encodeURIComponent(currentProfile));
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "dsh-profile-" + currentProfile + "-plugins.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) { toast("导出失败: " + e.message); }
+}
+function toggleTheme() {
+  const root = document.documentElement;
+  const light = root.classList.toggle("light");
+  document.getElementById("themeBtn").textContent = light ? "☀️" : "🌙";
 }
 async function installPlugin() {
   const input = document.getElementById("installInput");

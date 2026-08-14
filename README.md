@@ -1,50 +1,58 @@
 # dsh-plugin-manager
 
-A lightweight, standalone GUI to **manage DSH plugins across profiles** — inspired by
-[cc-switch](https://github.com/farion1231/cc-switch)'s provider manager. It is an
-**independent tool** (plain Node + browser), **not a DSH plugin**: it reads and edits
-your DSH profile files (`~/.dsh/profiles/<name>/`) directly and never hooks into DSH.
+A **desktop GUI** to manage DSH plugins across profiles — inspired by
+[cc-switch](https://github.com/farion1231/cc-switch). Built with
+**Tauri 2** (Rust backend + web frontend), exactly like cc-switch.
+
+It is an **independent desktop app**, **not a DSH plugin**: it reads and edits
+your DSH profile files (`~/.dsh/profiles/<name>/`) directly and never hooks
+into DSH.
 
 ## Features
 
-- List plugins per profile (merge of `dsh.profile.bundles` + `cordis.patch.yml` entries)
+- List plugins per profile (merge of `dsh.profile.bundles` + `cordis.patch.yml`)
 - Status badges: enabled / disabled, source (bundle / patch), version + description
-- One-click **enable / disable** (patches `cordis.patch.yml` rows; bundle plugins stay in the list)
-- **Add / remove bundles** (`dsh.profile.bundles`)
-- **Install** a package via the official `dsh plugin --profile <p> add <pkg>`
-- Profile switcher, live refresh, detail panel with config
+- One-click **enable / disable** (patches `cordis.patch.yml` rows)
+- **Add / remove / drag-and-drop reorder** of bundles (`dsh.profile.bundles`)
+- **Install** packages via `dsh plugin add`
+- **Export** the profile's plugin view as JSON
+- Search filter, light/dark theme, profile switcher, live refresh
 
-## Usage
-
-```bash
-npx dsh-plugin-manager          # or: node lib/cli.mjs
-# opens http://127.0.0.1:5177
-```
+## Develop
 
 ```bash
-PORT=8080 npx dsh-plugin-manager
+npm install              # tauri cli
+npx tauri dev            # run the desktop app (Rust backend + web frontend)
 ```
 
-## API
+## Build
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/profiles` | GET | list profiles |
-| `/api/plugins?profile=<name>` | GET | merged plugin list |
-| `/api/toggle` | POST | `{profile, id, disabled}` — set a plugin's disabled flag in `cordis.patch.yml` |
-| `/api/bundle` | POST | `{profile, name, enabled}` — add/remove a `dsh.profile.bundles` entry |
-| `/api/install` | POST | `{profile, package}` — `dsh plugin add` |
+```bash
+npx tauri build          # produces the desktop bundle (Windows / macOS / Linux)
+```
 
-## Design notes
+## WebUI fallback
 
-- **Reads DSH config files directly** (`$DSH_HOME` or `~/.dsh`); no DSH runtime dependency.
-- Mutations are minimal and targeted: toggling only adds/removes `disabled: true` on the
-  matching patch row; bundle ops edit `package.json` (preserving structure).
-- Changes require restarting `dsh web` to take effect (loader reads config at boot).
-- Cross-platform (Windows / macOS / Linux) — plain Node, no native deps beyond `yaml`.
+The same frontend also runs standalone in a browser for quick inspection:
+
+```bash
+node lib/cli.mjs         # http://127.0.0.1:5177 (fetch API mode)
+```
+
+## Backend (Tauri commands)
+
+| Command | Description |
+|---------|-------------|
+| `list_profiles` | profiles under `~/.dsh/profiles` |
+| `list_plugins` | merged plugin list for a profile |
+| `set_plugin_disabled` | toggle a patch row's `disabled` flag |
+| `set_bundle` | add/remove a `dsh.profile.bundles` entry |
+| `set_bundle_order` | reorder bundles |
+| `export_profile` | JSON export of the plugin view |
+| `install_plugin` | `dsh plugin add` |
 
 ## Test
 
 ```bash
-node test/api.mjs   # runs against a throwaway profile, never touches real profiles
+node test/api.mjs        # profiles logic against a throwaway profile (Node path)
 ```
