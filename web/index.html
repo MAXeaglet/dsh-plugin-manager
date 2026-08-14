@@ -232,8 +232,7 @@ async function showProfileFiles() {
   const save = document.createElement("button"); save.className = "btn primary"; save.textContent = "💾 保存";
   save.onclick = async () => {
     let manifest, patch;
-    try { manifest = mj.value.trim() ? JSON.stringify(JSON.parse(mj.value), null, 2) + "
-" : ""; } catch { return toast("package.json 不是合法 JSON"); }
+    try { manifest = mj.value.trim() ? JSON.stringify(JSON.parse(mj.value), null, 2) + String.fromCharCode(10) : ""; } catch { return toast("package.json 不是合法 JSON"); }
     patch = pc.value;
     const res = await api("/api/profile-files-save", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, manifest: manifest || null, patch }) });
     if (res.ok) { toast("已保存 ✓（备份在 profile 目录）"); mask.remove(); await loadPlugins(); }
