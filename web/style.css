@@ -96,3 +96,8 @@ header .spacer { flex: 1; }
 
 .modal .file-editor { flex: 1; min-height: 110px; margin: 0 16px; padding: 10px 12px; background: var(--panel2, transparent); border: 1px solid var(--line); border-radius: 8px; color: var(--text); font-family: var(--mono); font-size: 12px; line-height: 1.6; resize: vertical; outline: none; }
 .modal .file-editor:focus { border-color: var(--line2); }
+
+.confirm { width: 380px; max-width: 88vw; background: var(--panel); border: 1px solid var(--line2); border-radius: 12px; padding: 18px 20px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+.confirm-msg { font-size: 13px; line-height: 1.6; color: var(--text); margin-bottom: 16px; word-break: break-word; }
+.confirm-acts { display: flex; justify-content: flex-end; gap: 8px; }
+.confirm-acts .btn { min-width: 72px; }
