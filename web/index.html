@@ -51,9 +51,10 @@ let LANG = localStorage.getItem("dpm-lang") || "zh";
 const t = (k) => (I18N[LANG] || I18N.zh)[k] ?? k;
 function setLang(l) {
   LANG = l; localStorage.setItem("dpm-lang", l);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.activeElement === document.getElementById("searchInput")) { clearSearch(); } });
-applyLabels();
-  renderList(); if (plugins.length) selectPlugin(plugins[0].id);
+  applyLabels();
+  renderList();
+  const keep = plugins.find((p) => p.id === selectedId);
+  if (plugins.length) selectPlugin(keep ? keep.id : plugins[0].id);
 }
 function emojiFor(id) {
   return { pureBtn: "🧹 ", startBtn: "▶ ", stopBtn: "⏹ ", installBtn: "🔍 ", profileFilesBtn: "📄 " }[id] || "";
@@ -136,7 +137,7 @@ async function loadProfiles() {
     for (const p of data.profiles) {
       const it = document.createElement("div");
       it.className = "ri"; it.textContent = p.charAt(0).toUpperCase(); it.title = p;
-      it.onclick = () => { currentProfile = p; selectedId = null; renderRail(); loadPlugins(); };
+      it.onclick = () => { currentProfile = p; selectedId = null; renderRail(); loadPlugins().then(applyPureState); };
       box.appendChild(it);
     }
     if (!currentProfile) currentProfile = data.current || data.profiles[0];
@@ -171,6 +172,7 @@ async function loadPlugins() {
     const keep = plugins.find((p) => p.id === selectedId);
     if (plugins.length) selectPlugin(keep ? keep.id : plugins[0].id);
     else detailEl.innerHTML = '<div class="empty">' + t("none") + "</div>";
+    applyPureState();
   } catch (e) {
     plugins = [];
     listEl.innerHTML = '<div class="empty">—</div>';
@@ -251,19 +253,28 @@ function selectPlugin(id) {
   d.appendChild(acts);
 }
 async function togglePlugin(id, disabled) {
-  await api("/api/toggle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id, disabled }) });
-  toast((disabled ? "禁用 " : "启用 ") + id, disabled ? "ok" : "ok"); await loadPlugins();
+  try {
+    await api("/api/toggle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id, disabled }) });
+    toast((disabled ? "禁用 " : "启用 ") + id, "ok");
+    await loadPlugins();
+  } catch (e) { toast((disabled ? "禁用" : "启用") + "失败: " + (e.message || ""), "err"); }
 }
 async function saveConfig(id) {
-  let value; try { value = document.getElementById("configEditor").value.trim() ? JSON.parse(document.getElementById("configEditor").value) : null; } catch { return toast("config 非 JSON", "err"); }
-  await api("/api/config", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id, config: value }) });
-  toast(t("saveConfig") + " ✓", "ok"); await loadPlugins();
+  let value;
+  try { value = document.getElementById("configEditor").value.trim() ? JSON.parse(document.getElementById("configEditor").value) : null; }
+  catch { return toast("config 非 JSON", "err"); }
+  try {
+    await api("/api/config", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id, config: value }) });
+    toast(t("saveConfig") + " ✓", "ok"); await loadPlugins();
+  } catch (e) { toast("保存失败: " + (e.message || ""), "err"); }
 }
 async function removeBundle(name) {
   const ok = await uiConfirm("从 bundles 移除 " + name + "?", { danger: true, okText: t("removeBundle") });
   if (!ok) return;
-  await api("/api/bundle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name, enabled: false }) });
-  await loadPlugins();
+  try {
+    await api("/api/bundle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name, enabled: false }) });
+    await loadPlugins();
+  } catch (e) { toast("移除失败: " + (e.message || ""), "err"); }
 }
 async function openRepo(name) { const r = await api("/api/open-repo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name }) }); if (!r.ok) toast(r.error || "no repo"); }
 
@@ -329,8 +340,13 @@ async function showReadme(p) {
   head.append(title, close);
   const body = document.createElement("div"); body.className = "readme";
   if (r.ok) {
-    const md = renderReadme(r.readme);
-    body.append(...md.nodes);
+    try {
+      const md = renderReadme(r.readme);
+      body.append(...md.nodes);
+    } catch {
+      const pre = document.createElement("pre"); pre.className = "readme"; pre.textContent = r.readme;
+      body.appendChild(pre);
+    }
   } else {
     const empty = document.createElement("div"); empty.className = "empty"; empty.textContent = r.error || "no README";
     body.appendChild(empty);
@@ -367,9 +383,11 @@ async function showProfileFiles() {
     let manifest, patch;
     try { manifest = mj.value.trim() ? JSON.stringify(JSON.parse(mj.value), null, 2) + String.fromCharCode(10) : ""; } catch { return toast("package.json 不是合法 JSON"); }
     patch = pc.value;
-    const res = await api("/api/profile-files-save", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, manifest: manifest || null, patch }) });
-    if (res.ok) { toast("已保存 ✓（备份在 profile 目录）"); mask.remove(); await loadPlugins(); }
-    else toast(res.error || "保存失败");
+    try {
+      const res = await api("/api/profile-files-save", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, manifest: manifest || null, patch }) });
+      if (res.ok) { toast("已保存 ✓（备份在 profile 目录）", "ok"); mask.remove(); await loadPlugins(); }
+      else toast(res.error || "保存失败", "err");
+    } catch (e) { toast("保存失败: " + (e.message || ""), "err"); }
   };
   foot.append(tip, save);
   modal.append(foot);
@@ -384,8 +402,10 @@ async function reorderBundles(from, to) {
   const i = names.indexOf(from), j = names.indexOf(to);
   if (i < 0 || j < 0) return;
   names.splice(i, 1); names.splice(j, 0, from);
-  await api("/api/reorder", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, bundles: names }) });
-  await loadPlugins();
+  try {
+    await api("/api/reorder", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, bundles: names }) });
+    await loadPlugins();
+  } catch (e) { toast("排序失败: " + (e.message || ""), "err"); }
 }
 async function checkUpdates() {
   toast("检查中…");
@@ -418,12 +438,14 @@ async function togglePure() {
   const ask = purge ? t("pureAskOn") : t("pureAskOff");
   const ok = await uiConfirm(ask, { danger: purge, okText: purge ? t("pure") : t("pureOff") });
   if (!ok) return;
-  const r = await api("/api/purge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, purge }) });
-  btn.dataset.purged = purge ? "1" : "0";
-  btn.classList.toggle("pure-active", purge);
-  try { localStorage.setItem("dpm-pure-" + currentProfile, purge ? "1" : "0"); } catch {}
-  toast((purge ? "纯净模式：" : "已恢复：") + r.affected + " 个插件" + (purge ? " 已禁用" : " 已启用"), "ok");
-  await loadPlugins();
+  try {
+    const r = await api("/api/purge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, purge }) });
+    btn.dataset.purged = purge ? "1" : "0";
+    btn.classList.toggle("pure-active", purge);
+    try { localStorage.setItem("dpm-pure-" + currentProfile, purge ? "1" : "0"); } catch {}
+    toast((purge ? "纯净模式：" : "已恢复：") + r.affected + " 个插件" + (purge ? " 已禁用" : " 已启用"), "ok");
+    await loadPlugins();
+  } catch (e) { toast((purge ? "纯净模式" : "恢复") + "失败: " + (e.message || ""), "err"); }
 }
 async function startDsh() {
   const portEl = document.getElementById("dshPort");
@@ -460,7 +482,15 @@ function openSearch() {
         const info = document.createElement("div"); info.className = "info";
         info.innerHTML = "<b>" + (p.name || "") + "</b> <span style='color:var(--dim)'>" + (p.version || "") + "</span><small>" + (p.description || "") + "</small>";
         const btn = document.createElement("button"); btn.className = "btn sm primary"; btn.textContent = "安装";
-        btn.onclick = async () => { btn.disabled = true; const r = await api("/api/install", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, package: p.name }) }); toast(r.ok ? "已安装 " + p.name : "安装失败"); if (r.ok) await loadPlugins(); btn.disabled = false; };
+        btn.onclick = async () => {
+  btn.disabled = true;
+  try {
+    const r = await api("/api/install", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, package: p.name }) });
+    toast(r.ok ? "已安装 " + p.name : "安装失败: " + (r.error || ""), r.ok ? "ok" : "err");
+    if (r.ok) await loadPlugins();
+  } catch (e) { toast("安装失败: " + (e.message || ""), "err"); }
+  btn.disabled = false;
+};
         row.append(info, btn); res.appendChild(row);
       }
     } catch (e) { res.innerHTML = '<div class="empty">' + e.message + "</div>"; }
@@ -489,11 +519,11 @@ function applyPureState() {
   btn.dataset.purged = v;
   btn.classList.toggle("pure-active", v === "1");
 }
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.activeElement === document.getElementById("searchInput")) { clearSearch(); } });
 applyLabels();
-loadProfiles().then(applyPureState);
+loadProfiles();
 refreshDshStatus();
 setInterval(refreshDshStatus, 10000);
-setInterval(applyPureState, 1000);
 </script>
 </body>
 </html>
