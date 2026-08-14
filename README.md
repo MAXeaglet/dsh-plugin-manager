@@ -8,7 +8,11 @@ DSH 插件管理器：管理 dsh 的 profile / 插件，一键启动 dsh web。�
 
 ## 安装
 
-**桌面 GUI**（推荐）：从 [GitHub Releases](https://github.com/MAXeaglet/dsh-plugin-manager/releases) 下载安装包（Windows NSIS / macOS .dmg / Linux deb 等）。
+**桌面 GUI**（推荐）：从 [GitHub Releases](https://github.com/MAXeaglet/dsh-plugin-manager/releases) 下载安装包（GitHub Actions 自动构建三平台）：
+
+- **Windows**：`.exe`（NSIS）/ `.msi`
+- **macOS**：`.dmg`（Apple Silicon）
+- **Linux**：`.deb` / `.rpm` / `.AppImage`
 
 **CLI**（npm）：
 
