@@ -1,5 +1,7 @@
 # dsh-plugin-manager
 
+> 社区交流：[LINUX DO](https://linux.do) · [GitHub](https://github.com/MAXeaglet/dsh-plugin-manager)
+
 A **desktop GUI** to manage DSH plugins across profiles — inspired by
 [cc-switch](https://github.com/farion1231/cc-switch). Built with
 **Tauri 2** (Rust backend + web frontend), exactly like cc-switch.
