@@ -18,7 +18,10 @@ fn profiles_dir() -> PathBuf {
 }
 
 fn profile_dir(name: &str) -> PathBuf {
-    profiles_dir().join(name)
+    // prevent path traversal: profile names must be a single path segment
+    let base = name.split(|c| c == '/' || c == '\\').last().unwrap_or(name).to_string();
+    let safe = if base.contains("..") { base.replace("..", "_") } else { base };
+    profiles_dir().join(safe)
 }
 
 #[derive(Serialize)]
@@ -411,13 +414,16 @@ fn start_dsh(profile: String, port: Option<u16>) -> Json {
 }
 
 #[tauri::command]
-fn stop_dsh() -> Json {
+fn stop_dsh(port: Option<u16>) -> Json {
+    let p = port.unwrap_or(3080);
     #[cfg(target_os = "windows")]
     let result = Command::new("powershell")
-        .args(["-NoProfile", "-Command", "Get-CimInstance Win32_Process -Filter \"Name like '%node%'\" | Where-Object { $_.CommandLine -match 'dsh' -and $_.CommandLine -match 'web' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"])
+        .args(["-NoProfile", "-Command", &format!("$c = Get-NetTCPConnection -LocalPort {} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess; if ($c) {{ Stop-Process -Id $c -Force -ErrorAction SilentlyContinue }}", p)])
         .output();
     #[cfg(not(target_os = "windows"))]
-    let result = Command::new("sh").args(["-c", "pkill -f 'dsh web'"]).output();
+    let result = Command::new("sh")
+        .args(["-c", &format!("pid=$(lsof -tiTCP:{} -sTCP:LISTEN 2>/dev/null); if [ -n \"$pid\" ]; then kill $pid 2>/dev/null; fi", p)])
+        .output();
     match result {
         Ok(o) => serde_json::json!({ "ok": o.status.success() }),
         Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),
@@ -451,23 +457,16 @@ fn json_to_serde_yaml(v: Json) -> serde_yaml::Value {
     }
 }
 
-#[tauri::command]
-fn set_plugin_config(profile: String, id: String, config: Option<Json>) -> Result<Json, String> {
-    let dir = profile_dir(&profile);
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let path = dir.join("cordis.patch.yml");
-    let content = fs::read_to_string(&path).unwrap_or_default();
-    let mut doc: serde_yaml::Value = if content.trim().is_empty() {
-        serde_yaml::Value::Sequence(vec![])
-    } else {
-        serde_yaml::from_str(&content).unwrap_or(serde_yaml::Value::Sequence(vec![]))
-    };
-    let seq = doc.as_sequence_mut().ok_or("patch root is not a list")?;
+fn patch_row_set_config(doc: &mut serde_yaml::Value, id: &str, name: &str, config: Option<&Json>) {
+    let seq = doc.as_sequence_mut().unwrap();
     let mut found = false;
     for entry in seq.iter_mut() {
-        if entry.get("id").and_then(|v| v.as_str()) == Some(id.as_str()) {
-            let map = entry.as_mapping_mut().ok_or("entry is not a mapping")?;
-            match &config {
+        if entry.get("id").and_then(|v| v.as_str()) == Some(id) {
+            let map = entry.as_mapping_mut().unwrap();
+            if name != id {
+                map.insert(serde_yaml::Value::String("name".into()), serde_yaml::Value::String(name.into()));
+            }
+            match config {
                 Some(c) => {
                     map.insert(serde_yaml::Value::String("config".into()), json_to_serde_yaml(c.clone()));
                 }
@@ -479,11 +478,40 @@ fn set_plugin_config(profile: String, id: String, config: Option<Json>) -> Resul
     }
     if !found {
         let mut map = serde_yaml::Mapping::new();
-        map.insert(serde_yaml::Value::String("id".into()), serde_yaml::Value::String(id.clone()));
-        if let Some(c) = &config {
+        map.insert(serde_yaml::Value::String("id".into()), serde_yaml::Value::String(id.into()));
+        map.insert(serde_yaml::Value::String("name".into()), serde_yaml::Value::String(name.into()));
+        if let Some(c) = config {
             map.insert(serde_yaml::Value::String("config".into()), json_to_serde_yaml(c.clone()));
         }
         seq.push(serde_yaml::Value::Mapping(map));
+    }
+}
+
+#[tauri::command]
+fn set_plugin_config(profile: String, id: String, config: Option<Json>) -> Result<Json, String> {
+    let dir = profile_dir(&profile);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join("cordis.patch.yml");
+    let content = fs::read_to_string(&path).unwrap_or_default();
+    let mut doc: serde_yaml::Value = if content.trim().is_empty() {
+        serde_yaml::Value::Sequence(vec![])
+    } else {
+        serde_yaml::from_str(&content).unwrap_or(serde_yaml::Value::Sequence(vec![]))
+    };
+    if doc.as_sequence().is_none() {
+        doc = serde_yaml::Value::Sequence(vec![]);
+    }
+    // bundle id (package short name): expand to real insert rows
+    let full = bundles_of(&profile).into_iter().find(|b| b.rsplit('/').next().unwrap_or(b) == id);
+    let rows: Vec<(String, String)> = match full {
+        Some(f) => {
+            let r = bundle_insert_ids(&profile, &f);
+            if r.is_empty() { vec![(id.clone(), id.clone())] } else { r }
+        }
+        None => vec![(id.clone(), id.clone())],
+    };
+    for (rid, rname) in &rows {
+        patch_row_set_config(&mut doc, rid, rname, config.as_ref());
     }
     atomic_write(&path, &serde_yaml::to_string(&doc).map_err(|e| e.to_string())?)?;
     Ok(serde_json::json!({ "id": id, "config": config }))
@@ -560,16 +588,26 @@ fn npm_latest(name: &str) -> Option<String> {
 #[tauri::command]
 fn check_updates(profile: String) -> Json {
     let mut out = Vec::new();
+    let mut handles = Vec::new();
     for p in list_plugins(profile.clone()) {
         if p.kind == "bundle" {
             if let Some(local) = p.version {
-                let latest = npm_latest(&p.name);
-                let has = latest.as_ref().is_some() && latest.as_ref() != Some(&local);
-                out.push(serde_json::json!({
-                    "id": p.id, "name": p.name, "local": local,
-                    "latest": latest, "hasUpdate": has,
+                let name = p.name.clone();
+                handles.push(std::thread::spawn(move || {
+                    let latest = npm_latest(&name);
+                    (name, local, latest)
                 }));
             }
+        }
+    }
+    for h in handles {
+        if let Ok((name, local, latest)) = h.join() {
+            let has = latest.as_ref().is_some() && latest.as_ref() != Some(&local);
+            out.push(serde_json::json!({
+                "id": name.split('/').next_back().unwrap_or(&name),
+                "name": name, "local": local,
+                "latest": latest, "hasUpdate": has,
+            }));
         }
     }
     serde_json::json!(out)

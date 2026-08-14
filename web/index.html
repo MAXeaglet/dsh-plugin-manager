@@ -76,7 +76,7 @@ async function api(path, opts) {
       case "/api/install": return await invoke("install_plugin", body);
       case "/api/dsh-status": return await invoke("dsh_status");
       case "/api/dsh-start": return await invoke("start_dsh", body);
-      case "/api/dsh-stop": return await invoke("stop_dsh");
+      case "/api/dsh-stop": return await invoke("stop_dsh", body);
       case "/api/profile-info": return await invoke("profile_info", { profile: qs.get("profile") });
       case "/api/config": return await invoke("set_plugin_config", body);
       case "/api/search": return await invoke("search_npm", { query: qs.get("q") || "" });
@@ -428,7 +428,9 @@ async function refreshDshStatus() {
 async function stopDsh() {
   const ok = await uiConfirm(t("stopConfirm"), { danger: true, okText: t("stopDsh") });
   if (!ok) return;
-  const r = await api("/api/dsh-stop", { method: "POST" });
+  const portEl = document.getElementById("dshPort");
+  const port = portEl ? parseInt(portEl.value, 10) : 3080;
+  const r = await api("/api/dsh-stop", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ port: port || 3080 }) });
   toast(r.ok ? t("stopDsh") + " ✓" : t("startFailed"), r.ok ? "ok" : "err");
   setTimeout(refreshDshStatus, 1500);
 }

@@ -78,6 +78,13 @@ assert.ok(vtBundle.insertIds.includes("vision-toolkit"), "insertIds exposed");
 setPluginDisabled("web", "dsh-vision-toolkit", false);
 const vtPlugins2 = listPlugins("web");
 assert.strictEqual(vtPlugins2.find((p) => p.id === "dsh-vision-toolkit").disabled, false, "bundle re-enabled");
+// 9. setPluginConfig on a bundle expands to real insert id (same fix as disable)
+setPluginConfig("web", "dsh-vision-toolkit", { apiKey: "test" });
+const cfgPatch = readFileSync(join(prof, "cordis.patch.yml"), "utf8");
+assert.ok(cfgPatch.includes("id: vision-toolkit") && cfgPatch.includes("apiKey"), "bundle config written to real insert id");
+assert.ok(!cfgPatch.includes("id: dsh-vision-toolkit"), "no wrong-id config row");
+const cfgAfter = listPlugins("web").find((p) => p.id === "dsh-vision-toolkit");
+assert.deepStrictEqual(cfgAfter.config, { apiKey: "test" }, "bundle config visible in list");
 
 rmSync(tmp, { recursive: true, force: true });
 console.log("API TESTS PASSED");
