@@ -1,6 +1,6 @@
 [package]
 name = "dsh-plugin-manager"
-version = "0.1.0"
+version = "0.2.0"
 description = "Desktop GUI to manage DSH plugins across profiles"
 edition = "2021"
 
