@@ -1,11 +1,12 @@
 {
   "name": "@maxeagle/dsh-plugin-manager",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Desktop GUI + CLI to manage DSH plugins across profiles (Tauri 2, cc-switch/DSH style)",
   "type": "module",
   "main": "lib/server.mjs",
   "bin": {
-    "dsh-plugin-manager": "lib/cli.mjs"
+    "dsh-plugin-manager": "lib/cli.mjs",
+    "dshpm": "lib/cli.mjs"
   },
   "license": "MIT",
   "scripts": {

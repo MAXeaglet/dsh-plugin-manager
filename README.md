@@ -14,7 +14,7 @@ DSH 插件管理器：管理 dsh 的 profile / 插件，一键启动 dsh web。�
 
 ```bash
 npm i -g @maxeagle/dsh-plugin-manager
-dsh-plugin-manager --help
+dsh-plugin-manager --help   # 或别名 dshpm --help
 ```
 
 CLI 也可启动本地 WebUI（浏览器版界面）：
