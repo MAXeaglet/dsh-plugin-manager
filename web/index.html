@@ -131,24 +131,37 @@ function selectPlugin(id) {
   if (!p) return;
   document.querySelectorAll(".pl").forEach((r) => r.classList.toggle("active", r.dataset.id === id));
   const d = document.getElementById("detail");
-  const h = '<div class="hd"><h2>' + p.id + '</h2><span class="badge ' + (p.disabled ? "off" : "on") + '">' + (p.disabled ? t("disabled") : t("enabled")) + "</span></div>";
-  const sub = '<div class="sub">' + (p.description || p.name || "") + "</div>";
-  const rows = [
-    [t("source"), p.kind === "bundle" ? "bundle" : "patch"],
-    [t("name"), p.name], [t("version"), p.version || "—"], [t("status"), p.disabled ? t("disabled") : t("enabled")]
-  ];
-  if (p.has_bundle || p.has_client) rows.push([t("compat"), [p.has_bundle ? "dsh.bundle ✓" : null, p.has_client ? "dsh.client ✓" : null].filter(Boolean).join("  ")]);
-  if (p.author) rows.push(["author", p.author]);
-  if (p.license) rows.push(["license", p.license]);
-  let grid = '<div class="row">';
-  for (const [k, v] of rows) grid += "<dt>" + k + "</dt><dd>" + v + "</dd>";
-  grid += '<dt>' + t("config") + "</dt><dd><textarea id="configEditor" placeholder="" + t("configPh") + '">' + (p.config ? JSON.stringify(p.config, null, 2) : "") + "</textarea></dd></div>";
-  let acts = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">';
-  acts += '<button class="btn ' + (p.disabled ? "primary" : "") + '" onclick="togglePlugin('' + p.id + '',' + (p.disabled ? "false" : "true") + ')">' + (p.disabled ? t("enable") : t("disable")) + "</button>";
-  acts += '<button class="btn" onclick="saveConfig('' + p.id + '')">' + t("saveConfig") + "</button>";
-  if (p.kind === "bundle") acts += '<button class="btn" onclick="openRepo('' + p.name + '')">GitHub</button><button class="btn danger" onclick="removeBundle('' + p.name + '')">' + t("removeBundle") + "</button>";
-  acts += "</div>";
-  d.innerHTML = h + sub + grid + acts;
+  d.innerHTML = "";
+  const hd = document.createElement("div"); hd.className = "hd";
+  const h2 = document.createElement("h2"); h2.textContent = p.id;
+  const badge = document.createElement("span"); badge.className = "badge " + (p.disabled ? "off" : "on"); badge.textContent = p.disabled ? t("disabled") : t("enabled");
+  hd.append(h2, badge); d.appendChild(hd);
+  if (p.description) { const sub = document.createElement("div"); sub.className = "sub"; sub.textContent = p.description; d.appendChild(sub); }
+  const grid = document.createElement("div"); grid.className = "row";
+  const add = (k, v) => { const dt = document.createElement("dt"); dt.textContent = k; const dd = document.createElement("dd"); dd.textContent = v; grid.append(dt, dd); };
+  add(t("source"), p.kind === "bundle" ? "bundle" : "patch");
+  add(t("name"), p.name);
+  add(t("version"), p.version || "-");
+  add(t("status"), p.disabled ? t("disabled") : t("enabled"));
+  if (p.has_bundle || p.has_client) add(t("compat"), [p.has_bundle ? "dsh.bundle OK" : null, p.has_client ? "dsh.client OK" : null].filter(Boolean).join("  "));
+  if (p.author) add("author", p.author);
+  if (p.license) add("license", p.license);
+  const cdt = document.createElement("dt"); cdt.textContent = t("config");
+  const cdd = document.createElement("dd");
+  const ta = document.createElement("textarea"); ta.id = "configEditor"; ta.placeholder = t("configPh"); ta.value = p.config ? JSON.stringify(p.config, null, 2) : "";
+  cdd.appendChild(ta); grid.append(cdt, cdd);
+  d.appendChild(grid);
+  const acts = document.createElement("div"); acts.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:2px";
+  const tg = document.createElement("button"); tg.className = "btn" + (p.disabled ? " primary" : ""); tg.textContent = p.disabled ? t("enable") : t("disable");
+  tg.onclick = () => togglePlugin(p.id, !p.disabled);
+  const sv = document.createElement("button"); sv.className = "btn"; sv.textContent = t("saveConfig"); sv.onclick = () => saveConfig(p.id);
+  acts.append(tg, sv);
+  if (p.kind === "bundle") {
+    const gh = document.createElement("button"); gh.className = "btn"; gh.textContent = "GitHub"; gh.onclick = () => openRepo(p.name);
+    const rm = document.createElement("button"); rm.className = "btn danger"; rm.textContent = t("removeBundle"); rm.onclick = () => removeBundle(p.name);
+    acts.append(gh, rm);
+  }
+  d.appendChild(acts);
 }
 async function togglePlugin(id, disabled) {
   await api("/api/toggle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, id, disabled }) });
