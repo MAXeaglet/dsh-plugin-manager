@@ -553,12 +553,24 @@ mod tests {
     }
 }
 
+#[tauri::command]
+fn purge_third_party(profile: String, purge: bool) -> Result<Json, String> {
+    let mut affected = 0;
+    for p in list_plugins(profile.clone()) {
+        let official = p.name.starts_with("@deepseek-ai/");
+        if official { continue; }
+        set_plugin_disabled(profile.clone(), p.id.clone(), purge)?;
+        affected += 1;
+    }
+    Ok(serde_json::json!({ "purged": purge, "affected": affected }))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             list_profiles, list_plugins, set_plugin_disabled, set_bundle, set_bundle_order, export_profile, install_plugin,
-            dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config, search_npm, import_profile, open_plugin_repo, check_updates
+            dsh_status, start_dsh, stop_dsh, profile_info, set_plugin_config, search_npm, import_profile, open_plugin_repo, check_updates, purge_third_party
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

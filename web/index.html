@@ -18,6 +18,8 @@
     <h1>DSH Plugin Manager</h1>
     <button class="btn sm" onclick="loadProfiles()">刷新</button>
     <div class="spacer"></div>
+    <button class="btn sm" onclick="togglePure()" id="pureBtn">🧹</button>
+    <button class="btn sm" onclick="startDsh()">▶ dsh</button>
     <button class="btn sm" onclick="checkUpdates()">⬆</button>
     <button class="btn sm" onclick="toggleTheme()" id="themeBtn">🌙</button>
     <button class="btn sm" onclick="setLang(LANG==='zh'?'en':'zh')" id="langBtn">EN</button>
@@ -63,6 +65,7 @@ async function api(path, opts) {
       case "/api/import": return await invoke("import_profile", body);
       case "/api/open-repo": return await invoke("open_plugin_repo", body);
       case "/api/updates": return await invoke("check_updates", { profile: qs.get("profile") });
+      case "/api/purge": return await invoke("purge_third_party", body);
     }
     throw new Error("unknown api " + name);
   }
@@ -196,6 +199,21 @@ async function checkUpdates() {
 async function refreshDshStatus() { try { const s = await api("/api/dsh-status"); dshRunning = s.running; renderRail(); } catch {} }
 async function startDsh() { const r = await api("/api/dsh-start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile }) }); toast(r.ok ? "已启动 dsh" : "启动失败"); setTimeout(refreshDshStatus, 2000); }
 async function stopDsh() { if (!confirm("停止 dsh web?")) return; const r = await api("/api/dsh-stop", { method: "POST" }); toast(r.ok ? "已停止" : "停止失败"); setTimeout(refreshDshStatus, 1500); }
+async function togglePure() {
+  const btn = document.getElementById("pureBtn");
+  const purge = btn.dataset.purged !== "1";
+  if (!confirm(purge ? "纯净模式：禁用所有第三方插件（保留 @deepseek-ai 官方）？" : "退出纯净模式：重新启用所有第三方插件？")) return;
+  const r = await api("/api/purge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, purge }) });
+  btn.dataset.purged = purge ? "1" : "0";
+  btn.style.color = purge ? "var(--warn)" : "";
+  toast((purge ? "纯净模式：" : "已恢复：") + r.affected + " 个插件" + (purge ? " 已禁用" : " 已启用"));
+  await loadPlugins();
+}
+async function startDsh() {
+  const r = await api("/api/dsh-start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile }) });
+  toast(r.ok ? "已启动 dsh web（" + currentProfile + "）" : "启动失败");
+  setTimeout(refreshDshStatus, 2000);
+}
 function toggleTheme() { document.documentElement.classList.toggle("light"); }
 function openSearch() {
   const mask = document.createElement("div"); mask.className = "modal-mask";
