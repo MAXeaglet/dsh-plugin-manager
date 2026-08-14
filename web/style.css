@@ -132,3 +132,20 @@ header h1 { font-family: var(--mono); font-size: 12.5px; font-weight: 600; lette
 .pl { border-bottom: 1px solid var(--line); }
 .pl:hover { background: var(--panel2); }
 .pl.active { background: var(--panel2); box-shadow: inset 2px 0 0 var(--accent); }
+
+/* header rhythm: profile label, port input, group separators */
+#profileLabel { color: var(--dim); font-family: var(--mono); font-size: 11.5px; margin-right: 10px; }
+#dshPort { width: 62px; background: var(--panel2); border: 1px solid var(--line); color: var(--text); border-radius: 18px; padding: 5px 8px; font-family: var(--mono); font-size: 12px; text-align: center; outline: none; }
+#dshPort:focus { border-color: var(--accent); }
+.hsep { width: 1px; height: 20px; background: var(--line2); margin: 0 2px; flex: none; }
+header { gap: 5px; padding: 8px 14px; }
+header h1 { margin-right: 2px; }
+
+/* detail panel rhythm */
+.detail { padding: 22px 26px; }
+.detail .hd { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.detail .hd h2 { margin: 0; }
+.detail .sub { margin: 2px 0 18px; }
+.detail .row { grid-template-columns: 100px 1fr; gap: 7px 14px; margin-bottom: 18px; }
+.detail .row dt { padding-top: 1px; }
+.detail .acts { margin-top: 6px; }
