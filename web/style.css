@@ -172,3 +172,20 @@ pre.md-code { display: block; padding: 10px 12px; margin: 8px 0; overflow-x: aut
 .md-hr { border: none; border-top: 1px solid var(--line2); margin: 12px 0; }
 .readme a { color: var(--accent); text-decoration: none; }
 .readme a:hover { text-decoration: underline; }
+
+/* header overflow: keep pure/start/stop + menu visible at any width */
+header { flex-wrap: nowrap; min-width: 0; }
+header .btn, header #dshPort { flex: none; white-space: nowrap; }
+header h1 { flex: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* dropdown menu */
+.menu { position: absolute; top: 44px; right: 12px; width: 300px; max-width: calc(100vw - 24px); background: var(--panel); border: 1px solid var(--line2); border-radius: 10px; box-shadow: 0 0 0 1px rgba(0,0,0,.3); z-index: 60; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+header { position: relative; }
+.mg { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); padding: 8px 10px 3px; }
+.menu .mi { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid transparent; border-radius: 7px; }
+.menu .mi:hover { background: var(--panel2); border-color: var(--line); }
+.menu .mi .info { flex: 1; min-width: 0; }
+.menu .mi b { font-size: 12.5px; }
+.menu .mi small { display: block; color: var(--muted); font-size: 11px; }
+.menu .mi select { background: var(--panel2); border: 1px solid var(--line2); color: var(--text); border-radius: 6px; padding: 4px 8px; font: 12px var(--sans); }
+.menu .mi input[type=number] { width: 84px; background: var(--panel2); border: 1px solid var(--line2); color: var(--text); border-radius: 6px; padding: 4px 8px; font: 12px var(--mono); }
