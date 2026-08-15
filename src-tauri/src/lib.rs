@@ -6,6 +6,19 @@ use std::process::Command;
 use serde::Serialize;
 use serde_json::Value as Json;
 
+// Spawn a command without flashing a console window on Windows.
+#[cfg(target_os = "windows")]
+fn no_window(mut cmd: Command) -> Command {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
+#[cfg(not(target_os = "windows"))]
+fn no_window(cmd: Command) -> Command {
+    cmd
+}
+
 fn dsh_home() -> PathBuf {
     if let Ok(h) = std::env::var("DSH_HOME") {
         return PathBuf::from(h);
@@ -339,7 +352,7 @@ fn export_profile(profile: String) -> Json {
 
 #[tauri::command]
 fn install_plugin(profile: String, package: String) -> Json {
-    let output = Command::new("dsh")
+    let output = no_window(Command::new("dsh"))
         .args(["plugin", "--profile", &profile, "add", &package])
         .output();
     match output {
@@ -368,18 +381,10 @@ fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
 }
 
 fn dsh_running(port: u16) -> bool {
-    #[cfg(target_os = "windows")]
-    {
-        let ps = format!("Get-NetTCPConnection -LocalPort {} -State Listen -ErrorAction SilentlyContinue", port);
-        let out = Command::new("powershell").args(["-NoProfile", "-Command", &ps]).output();
-        match out { Ok(o) => o.status.success() && !o.stdout.is_empty(), Err(_) => false }
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let sh = format!("lsof -iTCP:{} -sTCP:LISTEN >/dev/null 2>&1", port);
-        let out = Command::new("sh").args(["-c", &sh]).output();
-        match out { Ok(o) => o.status.success(), Err(_) => false }
-    }
+    // pure TCP probe — no subprocess, no console window flash on any platform
+    use std::net::TcpStream;
+    use std::time::Duration;
+    TcpStream::connect_timeout(&format!("127.0.0.1:{}", port).parse().unwrap_or(([127, 0, 0, 1], port).into()), Duration::from_millis(300)).is_ok()
 }
 
 #[tauri::command]
@@ -399,7 +404,7 @@ fn start_dsh(profile: String, port: Option<u16>) -> Json {
         cmd.push(p.to_string());
     }
     #[cfg(target_os = "windows")]
-    let result = Command::new("cmd")
+    let result = no_window(Command::new("cmd"))
         .arg("/c").arg("start").arg("").arg("dsh")
         .args(&cmd)
         .spawn();
@@ -417,7 +422,7 @@ fn start_dsh(profile: String, port: Option<u16>) -> Json {
 fn stop_dsh(port: Option<u16>) -> Json {
     let p = port.unwrap_or(3080);
     #[cfg(target_os = "windows")]
-    let result = Command::new("powershell")
+    let result = no_window(Command::new("powershell"))
         .args(["-NoProfile", "-Command", &format!("$c = Get-NetTCPConnection -LocalPort {} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess; if ($c) {{ Stop-Process -Id $c -Force -ErrorAction SilentlyContinue }}", p)])
         .output();
     #[cfg(not(target_os = "windows"))]
@@ -519,7 +524,7 @@ fn set_plugin_config(profile: String, id: String, config: Option<Json>) -> Resul
 
 #[tauri::command]
 fn search_npm(query: String) -> Json {
-    let out = Command::new("npm").args(["search", &query, "--json"]).output();
+    let out = no_window(Command::new("npm")).args(["search", &query, "--json"]).output();
     match out {
         Ok(o) if o.status.success() => {
             if let Ok(list) = serde_json::from_slice::<Vec<Json>>(&o.stdout) {
@@ -659,7 +664,7 @@ fn version_newer(a: &str, b: &str) -> bool {
 }
 
 fn npm_latest(name: &str) -> Option<String> {
-    let out = Command::new("npm").args(["view", name, "version"]).output().ok()?;
+    let out = no_window(Command::new("npm")).args(["view", name, "version"]).output().ok()?;
     if out.status.success() {
         let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
         if !s.is_empty() { return Some(s); }
@@ -668,7 +673,7 @@ fn npm_latest(name: &str) -> Option<String> {
 }
 
 fn dsh_local_version() -> Option<String> {
-    let out = Command::new("dsh").args(["-V"]).output().ok()?;
+    let out = no_window(Command::new("dsh")).args(["-V"]).output().ok()?;
     if out.status.success() {
         let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
         if !s.is_empty() { return Some(s); }
@@ -690,7 +695,7 @@ fn check_dsh_update() -> Json {
 
 #[tauri::command]
 fn update_dsh() -> Json {
-    let output = Command::new("npm")
+    let output = no_window(Command::new("npm"))
         .args(["i", "-g", "@deepseek-ai/dsh"])
         .output();
     match output {
@@ -728,7 +733,7 @@ fn check_updates(profile: String) -> Json {
 }
 #[tauri::command]
 fn update_plugin(profile: String, name: String) -> Json {
-    let output = Command::new("dsh")
+    let output = no_window(Command::new("dsh"))
         .args(["plugin", "--profile", &profile, "update", &name])
         .output();
     match output {
