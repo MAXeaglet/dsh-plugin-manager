@@ -26,13 +26,13 @@
     <span id="profileLabel"></span>
     <div class="spacer"></div>
     <span class="hsep"></span>
-    <button class="btn" onclick="togglePure()" id="pureBtn" title="纯净模式：禁用所有第三方插件">🧹 纯净模式</button>
-    <button class="btn" onclick="showProfileFiles()" id="profileFilesBtn" title="view profile files">📄 配置文件</button>
+    <button class="btn" onclick="togglePure()" id="pureBtn" title="纯净模式：禁用所有第三方插件">纯净模式</button>
+    <button class="btn" onclick="showProfileFiles()" id="profileFilesBtn" title="view profile files">配置文件</button>
     <input id="dshPort" type="number" min="1" max="65535" value="3080" title="dsh web 端口">
     <span class="hsep"></span>
-    <button class="btn primary" onclick="startDsh()" id="startBtn" title="启动 dsh web">▶ 启动 dsh</button>
-    <button class="btn" onclick="stopDsh()" id="stopBtn" title="停止 dsh web">⏹ 停止</button>
-    <button class="btn" onclick="openSearch()" id="installBtn" title="打开 dshbase.com 插件市场">🔍 装插件</button>
+    <button class="btn primary" onclick="startDsh()" id="startBtn" title="启动 dsh web">启动 dsh</button>
+    <button class="btn" onclick="stopDsh()" id="stopBtn" title="停止 dsh web">停止</button>
+    <button class="btn" onclick="openSearch()" id="installBtn" title="打开 dshbase.com 插件市场">装插件</button>
     <button class="btn sm" onclick="checkUpdates()" title="检查更新" aria-label="check updates"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A5.5 5.5 0 1 1 2 10"/><path d="M2 3v3.5h3.5"/></svg></button>
     <button class="btn sm" onclick="updateDsh()" title="更新 DSH 本体" aria-label="update dsh">DSH↑</button>
     <button class="btn sm" onclick="toggleTheme()" id="themeBtn" title="主题" aria-label="theme"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1"/></svg></button>
@@ -64,10 +64,6 @@ function setLang(l) {
   const keep = plugins.find((p) => p.id === selectedId);
   if (plugins.length) selectPlugin(keep ? keep.id : plugins[0].id);
 }
-function emojiFor(id) {
-  return { pureBtn: "🧹 ", startBtn: "▶ ", stopBtn: "⏹ ", installBtn: "🔍 ", profileFilesBtn: "📄 " }[id] || "";
-}
-
 const invoke = window.__TAURI__?.core?.invoke || null;
 async function api(path, opts) {
   if (invoke) {
@@ -217,8 +213,8 @@ function renderList() {
     row.ondrop = (e) => { e.preventDefault(); row.classList.remove("drag-over"); reorderBundles(e.dataTransfer.getData("text/plain"), p.name); };
     const st = document.createElement("span"); st.className = "st " + (p.disabled ? "off" : "on");
     const id = document.createElement("span"); id.className = "id"; id.textContent = p.id;
-    const note = document.createElement("span"); note.className = "note"; note.textContent = p.disabled ? "⛔" : "";
-    const tag = document.createElement("span"); tag.className = "tag" + (updates[p.id] ? " upd" : ""); tag.textContent = updates[p.id] ? "⬆" + updates[p.id].latest : (p.kind === "bundle" ? "b" : "p");
+    const note = document.createElement("span"); note.className = "note"; note.textContent = p.disabled ? "×" : "";
+    const tag = document.createElement("span"); tag.className = "tag" + (updates[p.id] ? " upd" : ""); tag.textContent = updates[p.id] ? "↑" + updates[p.id].latest : (p.kind === "bundle" ? "b" : "p");
     row.append(st, id, note, tag);
     list.appendChild(row);
   }
@@ -255,11 +251,11 @@ function selectPlugin(id) {
   tg.onclick = () => togglePlugin(p.id, !p.disabled);
   const sv = document.createElement("button"); sv.className = "btn"; sv.textContent = t("saveConfig"); sv.onclick = () => saveConfig(p.id);
   acts.append(tg, sv);
-  const rd = document.createElement("button"); rd.className = "btn"; rd.textContent = "📖 " + t("readme"); rd.onclick = () => showReadme(p);
+  const rd = document.createElement("button"); rd.className = "btn"; rd.textContent = t("readme"); rd.onclick = () => showReadme(p);
   acts.append(rd);
   if (p.kind === "bundle") {
     const gh = document.createElement("button"); gh.className = "btn"; gh.textContent = "GitHub"; gh.onclick = () => openRepo(p.name);
-    const upd = updates[p.id] ? (() => { const b = document.createElement("button"); b.className = "btn"; b.textContent = "⬆ 更新到 " + updates[p.id].latest; b.onclick = () => updatePlugin(p.name); return b; })() : null;
+    const upd = updates[p.id] ? (() => { const b = document.createElement("button"); b.className = "btn"; b.textContent = "更新到 " + updates[p.id].latest; b.onclick = () => updatePlugin(p.name); return b; })() : null;
     const rm = document.createElement("button"); rm.className = "btn danger"; rm.textContent = t("removeBundle"); rm.onclick = () => removeBundle(p.name);
     if (upd) acts.append(upd);
     acts.append(gh, rm);
@@ -290,7 +286,13 @@ async function removeBundle(name) {
     await loadPlugins();
   } catch (e) { toast("移除失败: " + (e.message || ""), "err"); }
 }
-async function openRepo(name) { const r = await api("/api/open-repo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name }) }); if (!r.ok) toast(r.error || "no repo"); }
+async function openRepo(name) {
+  try {
+    const r = await api("/api/open-repo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name }) });
+    if (!r.ok) toast(r.error || "no repo", "err");
+    else if (r.url) toast("已打开 " + r.url, "ok");
+  } catch (e) { toast("打开失败: " + (e.message || ""), "err"); }
+}
 
 // Minimal safe README renderer: headings, bold, inline code, fenced code, lists, links, hr.
 function renderReadme(text) {
@@ -392,7 +394,7 @@ async function showProfileFiles() {
   mk("cordis.patch.yml", pc);
   const foot = document.createElement("div"); foot.className = "mh"; foot.style.borderTop = "1px solid var(--line)";
   const tip = document.createElement("span"); tip.style.cssText = "color:var(--muted);font-size:11px;flex:1"; tip.textContent = "保存前自动备份 .bak · 请保持 JSON / YAML 语法正确";
-  const save = document.createElement("button"); save.className = "btn primary"; save.textContent = "💾 保存";
+  const save = document.createElement("button"); save.className = "btn primary"; save.textContent = t("save");
   save.onclick = async () => {
     let manifest, patch;
     try { manifest = mj.value.trim() ? JSON.stringify(JSON.parse(mj.value), null, 2) + String.fromCharCode(10) : ""; } catch { return toast("package.json 不是合法 JSON"); }
@@ -479,13 +481,13 @@ async function startDsh() {
   const portEl = document.getElementById("dshPort");
   const port = portEl ? parseInt(portEl.value, 10) : 3080;
   const btn = document.getElementById("startBtn");
-  if (btn) { btn.disabled = true; btn.textContent = emojiFor("startBtn") + t("loading"); }
+  if (btn) { btn.disabled = true; btn.textContent = t("loading"); }
   try {
     const r = await api("/api/dsh-start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, port: port && port > 0 ? port : null }) });
     toast(r.ok ? "dsh web ✓（" + currentProfile + "，端口 " + (port || 3080) + "）" : t("startFailed"), r.ok ? "ok" : "err");
     setTimeout(refreshDshStatus, 2000);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = emojiFor("startBtn") + t("startDsh"); }
+    if (btn) { btn.disabled = false; btn.textContent = t("startDsh"); }
   }
 }
 async function updateDsh() {
@@ -516,7 +518,7 @@ function applyLabels() {
   const ids = { pureBtn: "pure", startBtn: "startDsh", stopBtn: "stopDsh", installBtn: "installPlugin", profileFilesBtn: "profileFiles" };
   for (const [id, key] of Object.entries(ids)) {
     const el = document.getElementById(id);
-    if (el) el.textContent = emojiFor(id) + t(key);
+    if (el) el.textContent = t(key);
   }
   const lb = document.getElementById("langBtn");
   if (lb) lb.textContent = LANG === "zh" ? "EN" : "中";

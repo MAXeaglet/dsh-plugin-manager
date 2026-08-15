@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert";
-import { listPlugins, setPluginDisabled, setBundle, setPluginConfig, readProfile } from "../lib/profiles.mjs";
+import { listPlugins, setPluginDisabled, setBundle, setPluginConfig, readProfile, normalizeRepoUrl } from "../lib/profiles.mjs";
 
 // redirect DSH_HOME to a temp dir
 const tmp = mkdtempSync(join(tmpdir(), "dpm-test-"));
@@ -85,6 +85,17 @@ assert.ok(cfgPatch.includes("id: vision-toolkit") && cfgPatch.includes("apiKey")
 assert.ok(!cfgPatch.includes("id: dsh-vision-toolkit"), "no wrong-id config row");
 const cfgAfter = listPlugins("web").find((p) => p.id === "dsh-vision-toolkit");
 assert.deepStrictEqual(cfgAfter.config, { apiKey: "test" }, "bundle config visible in list");
+
+// 10. repository URL normalization for the GitHub button
+assert.strictEqual(normalizeRepoUrl("git+https://github.com/owner/repo.git"), "https://github.com/owner/repo", "git+https stripped");
+assert.strictEqual(normalizeRepoUrl("git://github.com/owner/repo.git"), "https://github.com/owner/repo", "git:// converted");
+assert.strictEqual(normalizeRepoUrl("github:owner/repo"), "https://github.com/owner/repo", "github shorthand");
+assert.strictEqual(normalizeRepoUrl("git@github.com:owner/repo.git"), "https://github.com/owner/repo", "scp-like github");
+assert.strictEqual(normalizeRepoUrl("git+ssh://git@github.com/owner/repo.git"), "https://github.com/owner/repo", "git+ssh github");
+assert.strictEqual(normalizeRepoUrl("ssh://git@github.com/owner/repo.git"), "https://github.com/owner/repo", "ssh github");
+assert.strictEqual(normalizeRepoUrl("git+ssh://git@gitlab.com/group/repo.git"), "https://gitlab.com/group/repo", "generic git+ssh user stripped");
+assert.strictEqual(normalizeRepoUrl("https://github.com/owner/repo.git/"), "https://github.com/owner/repo", "trailing slash and .git");
+assert.strictEqual(normalizeRepoUrl("http://github.com/owner/repo.git"), "https://github.com/owner/repo", "http github to https");
 
 rmSync(tmp, { recursive: true, force: true });
 console.log("API TESTS PASSED");

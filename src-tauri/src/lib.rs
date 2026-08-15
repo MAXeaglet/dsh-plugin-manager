@@ -558,19 +558,66 @@ fn import_profile(profile: String, bundles: Option<Vec<String>>, patch: Option<J
     Ok(serde_json::json!({ "profile": profile, "imported": true }))
 }
 
+/// Convert common npm repository URL forms to a browser-friendly https URL.
+fn normalize_repo_url(raw: &str) -> String {
+    let mut s = raw.trim().to_string();
+    if let Some(rest) = s.strip_prefix("github:") {
+        s = format!("https://github.com/{}", rest);
+    } else if let Some(rest) = s.strip_prefix("gitlab:") {
+        s = format!("https://gitlab.com/{}", rest);
+    } else if let Some(rest) = s.strip_prefix("bitbucket:") {
+        s = format!("https://bitbucket.org/{}", rest);
+    } else if let Some(rest) = s.strip_prefix("git+ssh://git@github.com/") {
+        s = format!("https://github.com/{}", rest);
+    } else if let Some(rest) = s.strip_prefix("ssh://git@github.com/") {
+        s = format!("https://github.com/{}", rest);
+    } else if let Some(rest) = s.strip_prefix("git@github.com:") {
+        s = format!("https://github.com/{}", rest);
+    } else if let Some(rest) = s.strip_prefix("git+https://") {
+        s = format!("https://{}", rest);
+    } else if let Some(rest) = s.strip_prefix("git+http://") {
+        s = format!("http://{}", rest);
+    } else if let Some(rest) = s.strip_prefix("git://") {
+        s = format!("https://{}", rest);
+    } else if let Some(rest) = s.strip_prefix("git+ssh://") {
+        let rest = rest.strip_prefix("git@").unwrap_or(rest);
+        s = format!("https://{}", rest);
+    } else if let Some(rest) = s.strip_prefix("ssh://") {
+        let rest = rest.strip_prefix("git@").unwrap_or(rest);
+        s = format!("https://{}", rest);
+    }
+    if s.starts_with("http://github.com/") {
+        s = format!("https://{}", &s["http://".len()..]);
+    }
+    while s.ends_with('/') {
+        s.pop();
+    }
+    if s.ends_with(".git") {
+        s.truncate(s.len() - 4);
+    }
+    s
+}
+
+fn repo_url_from_package(pkg: &Json) -> Option<String> {
+    let repo = pkg.get("repository")?;
+    let raw = match repo {
+        Json::String(s) => Some(s.clone()),
+        Json::Object(o) => o.get("url").and_then(|u| u.as_str()).map(|s| s.to_string()),
+        _ => None,
+    };
+    raw.map(|u| normalize_repo_url(&u))
+}
+
 #[tauri::command]
 fn open_plugin_repo(app: tauri::AppHandle, profile: String, name: String) -> Json {
-    let url = bundle_package(&profile, &name).and_then(|p| {
-        p.get("repository").and_then(|r| {
-            r.get("url").and_then(|u| u.as_str()).map(|s| s.to_string())
-                .or_else(|| r.as_str().map(|s| s.to_string()))
-        })
-    });
+    let url = bundle_package(&profile, &name).and_then(|p| repo_url_from_package(&p));
     match url {
         Some(u) => {
             use tauri_plugin_opener::OpenerExt;
-            let _ = app.opener().open_url(u.clone(), None::<String>);
-            serde_json::json!({ "ok": true, "url": u })
+            match app.opener().open_url(u.clone(), None::<String>) {
+                Ok(_) => serde_json::json!({ "ok": true, "url": u }),
+                Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),
+            }
         }
         None => serde_json::json!({ "ok": false, "error": "no repository" }),
     }
@@ -769,6 +816,20 @@ mod tests {
         std::env::set_var("DSH_HOME", &tmp);
         (tmp, _guard)
     }
+
+    #[test]
+    fn normalizes_repository_urls_for_browser() {
+        assert_eq!(normalize_repo_url("git+https://github.com/owner/repo.git"), "https://github.com/owner/repo");
+        assert_eq!(normalize_repo_url("git://github.com/owner/repo.git"), "https://github.com/owner/repo");
+        assert_eq!(normalize_repo_url("github:owner/repo"), "https://github.com/owner/repo");
+        assert_eq!(normalize_repo_url("git@github.com:owner/repo.git"), "https://github.com/owner/repo");
+        assert_eq!(normalize_repo_url("git+ssh://git@github.com/owner/repo.git"), "https://github.com/owner/repo");
+        assert_eq!(normalize_repo_url("ssh://git@github.com/owner/repo.git"), "https://github.com/owner/repo");
+        assert_eq!(normalize_repo_url("git+ssh://git@gitlab.com/group/repo.git"), "https://gitlab.com/group/repo");
+        assert_eq!(normalize_repo_url("https://github.com/owner/repo.git/"), "https://github.com/owner/repo");
+        assert_eq!(normalize_repo_url("http://github.com/owner/repo.git"), "https://github.com/owner/repo");
+    }
+
 
     #[test]
     fn lists_bundles_and_patch_rows() {
