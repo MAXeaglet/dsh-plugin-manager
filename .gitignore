@@ -1,3 +1,5 @@
 node_modules/
 src-tauri/target/
 *.log
+# local docs (not tracked)
+docs/
