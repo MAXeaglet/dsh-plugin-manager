@@ -33,8 +33,7 @@
     <button class="btn primary" onclick="startDsh()" id="startBtn" title="启动 dsh web">启动 dsh</button>
     <button class="btn" onclick="stopDsh()" id="stopBtn" title="停止 dsh web">停止</button>
     <button class="btn" onclick="openSearch()" id="installBtn" title="打开 dshbase.com 插件市场">装插件</button>
-    <button class="btn sm" onclick="checkUpdates()" title="检查更新" aria-label="check updates"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A5.5 5.5 0 1 1 2 10"/><path d="M2 3v3.5h3.5"/></svg></button>
-    <button class="btn sm" onclick="updateDsh()" title="更新 DSH 本体" aria-label="update dsh">DSH↑</button>
+    <button class="btn" onclick="openUpdates()" id="updateBtn" title="检查插件与 DSH 更新">⬆ 更新</button>
     <button class="btn sm" onclick="toggleTheme()" id="themeBtn" title="主题" aria-label="theme"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1"/></svg></button>
     <button class="btn sm" onclick="setLang(LANG==='zh'?'en':'zh')" id="langBtn">EN</button>
   </header>
@@ -423,24 +422,94 @@ async function reorderBundles(from, to) {
     await loadPlugins();
   } catch (e) { toast("排序失败: " + (e.message || ""), "err"); }
 }
-async function checkUpdates() {
-  toast("检查中…");
-  try {
-    const list = await api("/api/updates?profile=" + encodeURIComponent(currentProfile));
-    updates = {}; for (const u of list) if (u.hasUpdate) updates[u.id] = u;
-    renderList();
-    const n = Object.keys(updates).length;
-    toast(n ? n + " 个插件有更新（详情面板可逐个更新）" : "全部最新", n ? "" : "ok");
-  } catch (e) { toast("检查失败: " + (e.message || ""), "err"); }
+// Unified update panel: DSH runtime + plugin updates in one modal.
+async function openUpdates() {
+  const mask = document.createElement("div"); mask.className = "modal-mask";
+  const modal = document.createElement("div"); modal.className = "modal wide";
+  const head = document.createElement("div"); head.className = "mh";
+  const title = document.createElement("b"); title.textContent = "更新中心";
+  const close = document.createElement("button"); close.className = "btn"; close.textContent = "✕";
+  close.onclick = () => mask.remove();
+  head.append(title, close);
+  const body = document.createElement("div"); body.className = "mr";
+  body.innerHTML = '<div class="empty muted">检查中…</div>';
+  modal.append(head, body);
+  mask.append(modal);
+  mask.onclick = (e) => { if (e.target === mask) mask.remove(); };
+  document.body.appendChild(mask);
+
+  const [dshInfo, pluginList] = await Promise.all([
+    api("/api/check-dsh").catch(() => null),
+    api("/api/updates?profile=" + encodeURIComponent(currentProfile)).catch(() => []),
+  ]);
+  body.innerHTML = "";
+
+  // --- DSH runtime section ---
+  const dshSec = document.createElement("div"); dshSec.className = "mi";
+  const dshInfoBox = document.createElement("div"); dshInfoBox.className = "info";
+  const dshLine = document.createElement("b");
+  if (dshInfo) {
+    dshLine.textContent = "DSH 运行时  " + (dshInfo.local || "?");
+    if (dshInfo.hasUpdate) dshLine.textContent += " → " + (dshInfo.latest || "?");
+  } else dshLine.textContent = "DSH 运行时（查询失败）";
+  dshInfoBox.appendChild(dshLine);
+  const dshBtn = document.createElement("button"); dshBtn.className = "btn sm primary";
+  dshBtn.textContent = dshInfo && dshInfo.hasUpdate ? "更新 DSH" : "已最新";
+  dshBtn.disabled = !(dshInfo && dshInfo.hasUpdate);
+  dshBtn.onclick = async () => {
+    dshBtn.disabled = true; dshBtn.textContent = "更新中…";
+    try {
+      const r = await api("/api/update-dsh", { method: "POST" });
+      const after = await api("/api/check-dsh").catch(() => null);
+      dshBtn.textContent = r.ok ? "已更新 " + (after && after.local || "?") : "失败";
+      toast(r.ok ? "DSH 已更新到 " + (after && after.local || "?") : "更新失败: " + (r.error || r.output || "").slice(0, 120), r.ok ? "ok" : "err");
+      if (r.ok) { dshBtn.disabled = true; dshLine.textContent = "DSH 运行时  " + (after && after.local || "?"); }
+    } catch (e) { dshBtn.textContent = "失败"; dshBtn.disabled = false; toast("更新失败: " + (e.message || ""), "err"); }
+  };
+  dshSec.append(dshInfoBox, dshBtn);
+  body.appendChild(dshSec);
+
+  // --- plugins section ---
+  const updPlugs = (Array.isArray(pluginList) ? pluginList : []).filter((u) => u.hasUpdate);
+  const plugSec = document.createElement("div"); plugSec.className = "mi";
+  const plugInfo = document.createElement("div"); plugInfo.className = "info";
+  const plugLine = document.createElement("b");
+  plugLine.textContent = "插件更新  " + (updPlugs.length ? updPlugs.length + " 个可更新" : "全部最新");
+  plugInfo.appendChild(plugLine);
+  const plugBody = document.createElement("div"); plugBody.style.cssText = "display:flex;flex-direction:column;gap:4px;margin-top:6px";
+  for (const u of updPlugs) {
+    const row = document.createElement("div"); row.className = "mi";
+    const rinfo = document.createElement("div"); rinfo.className = "info";
+    const rb = document.createElement("b"); rb.textContent = u.name + "  " + u.local + " → " + u.latest;
+    rinfo.appendChild(rb);
+    const rbtn = document.createElement("button"); rbtn.className = "btn sm primary"; rbtn.textContent = "更新";
+    rbtn.onclick = async () => {
+      rbtn.disabled = true; rbtn.textContent = "更新中…";
+      try {
+        const r = await api("/api/update-plugin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name: u.name }) });
+        rbtn.textContent = r.ok ? "已更新" : "失败";
+        toast(r.ok ? "已更新 " + u.name : "更新失败: " + (r.error || r.output || "").slice(0, 120), r.ok ? "ok" : "err");
+        if (r.ok) rbtn.disabled = true;
+      } catch (e) { rbtn.textContent = "失败"; rbtn.disabled = false; toast("更新失败: " + (e.message || ""), "err"); }
+    };
+    row.append(rinfo, rbtn);
+    plugBody.appendChild(row);
+  }
+  plugSec.append(plugInfo, plugBody);
+  body.appendChild(plugSec);
+
+  // refresh list badges after panel opens (plugin list may show ⬆)
+  await loadPlugins();
 }
 async function updatePlugin(name) {
+  // kept for detail-panel update button
   const ok = await uiConfirm("更新 " + name + "?", { okText: "更新" });
   if (!ok) return;
   toast("更新中…");
   try {
     const r = await api("/api/update-plugin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: currentProfile, name }) });
     toast(r.ok ? "已更新 " + name : "更新失败: " + (r.error || r.output || "").slice(0, 120), r.ok ? "ok" : "err");
-    await checkUpdates(); await loadPlugins();
+    await loadPlugins();
   } catch (e) { toast("更新失败: " + (e.message || ""), "err"); }
 }
 async function refreshDshStatus() {
@@ -489,18 +558,6 @@ async function startDsh() {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = t("startDsh"); }
   }
-}
-async function updateDsh() {
-  try {
-    const info = await api("/api/check-dsh");
-    if (!info.hasUpdate) { toast("DSH 已是最新: " + (info.local || "?"), "ok"); return; }
-    const ok = await uiConfirm("更新 DSH 本体？\n" + (info.local || "?") + " → " + info.latest, { okText: "更新 DSH" });
-    if (!ok) return;
-    toast("更新中…（可能需 1-2 分钟）");
-    const r = await api("/api/update-dsh", { method: "POST" });
-    const after = await api("/api/check-dsh");
-    toast(r.ok ? "DSH 已更新到 " + (after.local || "?") : "更新失败: " + (r.error || r.output || "").slice(0, 150), r.ok ? "ok" : "err");
-  } catch (e) { toast("操作失败: " + (e.message || ""), "err"); }
 }
 function toggleTheme() { document.documentElement.classList.toggle("light"); }
 function openSearch() {
