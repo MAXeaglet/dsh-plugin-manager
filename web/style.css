@@ -172,12 +172,3 @@ pre.md-code { display: block; padding: 10px 12px; margin: 8px 0; overflow-x: aut
 .md-hr { border: none; border-top: 1px solid var(--line2); margin: 12px 0; }
 .readme a { color: var(--accent); text-decoration: none; }
 .readme a:hover { text-decoration: underline; }
-
-/* lang select: compact, never overflows */
-#langSelect { background: var(--panel2); border: 1px solid var(--line2); color: var(--text); border-radius: 18px; padding: 5px 8px; font: 12px var(--sans); outline: none; cursor: pointer; flex: none; }
-#langSelect:hover { border-color: var(--accent); }
-
-/* header overflow control: key buttons never shrink */
-header { flex-wrap: nowrap; min-width: 0; }
-header .btn, header #dshPort, header #langSelect { flex: none; white-space: nowrap; }
-header h1 { flex: none; }

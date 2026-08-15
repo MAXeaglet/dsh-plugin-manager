@@ -35,10 +35,7 @@
     <button class="btn" onclick="openSearch()" id="installBtn" title="打开 dshbase.com 插件市场">装插件</button>
     <button class="btn" onclick="openUpdates()" id="updateBtn" title="检查插件与 DSH 更新">⬆ 更新</button>
     <button class="btn sm" onclick="toggleTheme()" id="themeBtn" title="主题" aria-label="theme"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1"/></svg></button>
-    <select id="langSelect" onchange="setLang(this.value)" title="语言 / Language">
-      <option value="zh">中文</option>
-      <option value="en">English</option>
-    </select>
+    <button class="btn sm" onclick="setLang(LANG==='zh'?'en':'zh')" id="langBtn">EN</button>
   </header>
   <div class="body">
     <div class="side">
@@ -62,8 +59,6 @@ const t = (k) => (I18N[LANG] || I18N.zh)[k] ?? k;
 function setLang(l) {
   LANG = l; localStorage.setItem("dpm-lang", l);
   applyLabels();
-  const sel = document.getElementById("langSelect");
-  if (sel) sel.value = LANG;
   renderList();
   const keep = plugins.find((p) => p.id === selectedId);
   if (plugins.length) selectPlugin(keep ? keep.id : plugins[0].id);
@@ -582,8 +577,8 @@ function applyLabels() {
     const el = document.getElementById(id);
     if (el) el.textContent = t(key);
   }
-  const sel = document.getElementById("langSelect");
-  if (sel) sel.value = LANG;
+  const lb = document.getElementById("langBtn");
+  if (lb) lb.textContent = LANG === "zh" ? "EN" : "中";
 }
 function applyPureState() {
   const btn = document.getElementById("pureBtn");
@@ -595,7 +590,6 @@ function applyPureState() {
 }
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.activeElement === document.getElementById("searchInput")) { clearSearch(); } });
 applyLabels();
-const langSel = document.getElementById("langSelect"); if (langSel) langSel.value = LANG;
 loadProfiles();
 refreshDshStatus();
 setInterval(refreshDshStatus, 10000);
