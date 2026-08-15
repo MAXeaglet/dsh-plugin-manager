@@ -6,6 +6,13 @@ DSH 插件管理器：管理 dsh 的 profile / 插件，一键启动 dsh web。�
 
 > 独立工具，不是 DSH 插件：直接读写 profile 文件（`~/.dsh/profiles/<name>/`），不挂载进 DSH。
 
+## 文档
+
+- [架构](docs/architecture.md) — 三种形态与双实现结构
+- [开发指南](docs/development.md) — 构建 / 测试 / 发布
+- [踩坑记录](docs/pitfalls.md) — 常见问题与解法
+
+
 ## 安装
 
 **桌面 GUI**（推荐）：从 [GitHub Releases](https://github.com/MAXeaglet/dsh-plugin-manager/releases) 下载安装包（GitHub Actions 自动构建三平台）：
